@@ -371,10 +371,10 @@ async def search_decisions(
             "(ts_rank(d.search_vector, websearch_to_tsquery('english', :qtext)) * 0.55 "
             "+ CASE WHEN d.case_number ILIKE :q_exact THEN 4.0 ELSE 0 END "
             "+ CASE WHEN d.case_number ILIKE :q_like THEN 1.5 ELSE 0 END "
-            "+ CASE WHEN d.employer_name ILIKE :q_like THEN 0.8 ELSE 0 END "
+            "+ CASE WHEN d.employer_name ILIKE :q_like THEN 2.0 ELSE 0 END "
             "+ CASE WHEN d.job_title ILIKE :q_like THEN 0.5 ELSE 0 END "
-            "+ log(1 + COALESCE((SELECT COUNT(*) FROM citations c WHERE c.cited_id = d.id), 0)) * 0.25 "
-            "+ COALESCE((SELECT COUNT(*) FROM decision_regulations dr WHERE dr.decision_id = d.id), 0) * 0.05) "
+            "+ log(1 + COALESCE((SELECT COUNT(*) FROM citations c WHERE c.cited_id = d.id), 0)) * 0.30 "
+            "+ log(1 + COALESCE((SELECT COUNT(*) FROM decision_regulations dr WHERE dr.decision_id = d.id), 0)) * 0.10) "
             "DESC, d.decision_date DESC NULLS LAST"
         )
     else:
@@ -887,11 +887,12 @@ async def aao_search(
         )
     elif q_text:
         order = (
-            "(ts_rank(d.search_vector, websearch_to_tsquery('english', :qtext)) * 0.65 "
+            "(ts_rank(d.search_vector, websearch_to_tsquery('english', :qtext)) * 0.60 "
             "+ CASE WHEN d.title ILIKE :q_like THEN 1.5 ELSE 0 END "
             "+ CASE WHEN d.filename ILIKE :q_like THEN 1.0 ELSE 0 END "
             "+ CASE WHEN d.form_type ILIKE :q_like THEN 0.8 ELSE 0 END "
-            "+ CASE WHEN d.regulation ILIKE :q_like THEN 0.7 ELSE 0 END) "
+            "+ CASE WHEN d.regulation ILIKE :q_like THEN 0.7 ELSE 0 END "
+            "+ log(1 + COALESCE((SELECT COUNT(*) FROM aao_citations ac WHERE ac.cited_aao_id = d.id), 0)) * 0.30) "
             "DESC, d.decision_date DESC NULLS LAST"
         )
     else:
@@ -944,6 +945,73 @@ async def get_aao_decision(decision_id: int):
     d["ingested_at"] = str(d["ingested_at"]) if d.get("ingested_at") else None
     d["search_vector"] = None
     return d
+
+
+@app.get("/api/aao/decisions/{decision_id}/citation-map")
+async def get_aao_citation_map(decision_id: int):
+    """
+    Returns all outbound citations from this AAO decision, keyed by cited_raw.
+    Each entry includes the citation type and resolved IDs for link targets.
+    Used by the frontend to hyperlink Matter of / I&N Dec. citations inline.
+
+    Shape: { "Matter of Chawathe": { type, cited_aao_id, cited_balca_id, cited_precedent_id },
+             "25 I&N Dec. 369":    { type, cited_aao_id, cited_balca_id, cited_precedent_id }, ... }
+    """
+    rows = await database.fetch_all(q("""
+        SELECT cited_raw, citation_type, cited_aao_id, cited_balca_id, cited_precedent_id
+        FROM aao_citations
+        WHERE citing_id = :id
+    """, id=decision_id))
+    return {
+        row["cited_raw"]: {
+            "type":               row["citation_type"],
+            "cited_aao_id":       row["cited_aao_id"],
+            "cited_balca_id":     row["cited_balca_id"],
+            "cited_precedent_id": row["cited_precedent_id"],
+        }
+        for row in rows
+    }
+
+
+@app.get("/api/aao/decisions/{decision_id}/citations")
+async def get_aao_citations(decision_id: int):
+    """
+    Full citation detail for a single AAO decision — both outbound and inbound.
+    Used by the detail sidebar to show what this decision cites and what cites it.
+    """
+    citations_made = await database.fetch_all(q("""
+        SELECT ac.id, ac.cited_raw, ac.citation_type, ac.context_snippet,
+               ac.cited_aao_id, ac.cited_balca_id, ac.cited_precedent_id,
+               a2.title          AS cited_aao_title,
+               a2.filename       AS cited_aao_filename,
+               d2.case_number    AS cited_balca_case_number,
+               pd.citation       AS cited_precedent_citation,
+               pd.party_name     AS cited_precedent_party
+        FROM aao_citations ac
+        LEFT JOIN aao_decisions      a2 ON a2.id = ac.cited_aao_id
+        LEFT JOIN decisions          d2 ON d2.id = ac.cited_balca_id
+        LEFT JOIN precedent_decisions pd ON pd.id = ac.cited_precedent_id
+        WHERE ac.citing_id = :id
+        ORDER BY ac.citation_type, ac.cited_raw
+    """, id=decision_id))
+
+    cited_by = await database.fetch_all(q("""
+        SELECT ac.id, ac.citing_id, ac.cited_raw, ac.citation_type, ac.context_snippet,
+               a2.title    AS citing_aao_title,
+               a2.filename AS citing_aao_filename,
+               a2.decision_date::text AS citing_aao_date,
+               a2.outcome  AS citing_aao_outcome
+        FROM aao_citations ac
+        JOIN aao_decisions a2 ON a2.id = ac.citing_id
+        WHERE ac.cited_aao_id = :id
+        ORDER BY a2.decision_date DESC NULLS LAST
+    """, id=decision_id))
+
+    return {
+        "citations_made": [dict(r) for r in citations_made],
+        "cited_by":       [dict(r) for r in cited_by],
+    }
+
 
 
 @app.get("/api/precedents/map")
@@ -1253,8 +1321,9 @@ async def search_all(
 	                (ts_rank(d.search_vector, websearch_to_tsquery('english', :q)) * 0.55
 	                 + CASE WHEN d.case_number ILIKE :q_exact THEN 4.0 ELSE 0 END
 	                 + CASE WHEN d.case_number ILIKE :q_like THEN 1.5 ELSE 0 END
-	                 + CASE WHEN d.employer_name ILIKE :q_like THEN 0.8 ELSE 0 END
-	                 + log(1 + COALESCE((SELECT COUNT(*) FROM citations c WHERE c.cited_id = d.id), 0)) * 0.25)
+	                 + CASE WHEN d.employer_name ILIKE :q_like THEN 2.0 ELSE 0 END
+	                 + log(1 + COALESCE((SELECT COUNT(*) FROM citations c WHERE c.cited_id = d.id), 0)) * 0.30
+	                 + log(1 + COALESCE((SELECT COUNT(*) FROM decision_regulations dr WHERE dr.decision_id = d.id), 0)) * 0.10)
 	                                                                           AS rank,
 	                ts_headline('english', d.full_text,
                     websearch_to_tsquery('english', :q),

@@ -100,6 +100,20 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# ── 5. AAO citations: extract citations from newly ingested decisions ─────────
+# --since uses a 8-day window (one day past the weekly schedule) to ensure
+# nothing falls through the cracks if a run is delayed or missed.
+SINCE=$(date -v-8d '+%Y-%m-%d' 2>/dev/null || date -d '8 days ago' '+%Y-%m-%d')
+log "--- AAO citation extraction (since $SINCE) ---"
+if cd "$INGEST_DIR" && "$SYSTEM_PYTHON" build_aao_citations.py \
+    --since "$SINCE" \
+    >> "$LOG" 2>&1; then
+    log "AAO citations: OK"
+else
+    log "AAO citations: FAILED (exit $?)"
+    ERRORS=$((ERRORS + 1))
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 log "======================================================"
 if [ "$ERRORS" -eq 0 ]; then
