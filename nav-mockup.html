@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casebase — Nav Mockup</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0e0f;--bg2:#141416;--bg3:#1c1c1f;--bg4:#242428;
+  --border:#2a2a2e;--border2:#3a3a3f;
+  --text:#f0f0f3;--text2:#c6c6d1;--text3:#a4a4b3;
+  --amber:#f59e0b;--amber2:#fbbf24;--amber-dim:#f59e0b22;
+  --green:#34d399;--green-dim:#34d39918;
+  --blue:#60a5fa;--blue-dim:#60a5fa18;
+  --red:#f87171;
+  --r:6px;--rl:10px;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+/* ── Layout frames ── */
+.frame-row{display:flex;gap:32px;padding:32px;align-items:flex-start;flex-wrap:wrap}
+.frame{flex:0 0 auto}
+.frame-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
+.annotation{font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5}
+.annotation strong{color:var(--amber);font-weight:500}
+
+/* ── Simulated browser chrome ── */
+.browser{border:1px solid var(--border2);border-radius:12px;overflow:hidden;background:var(--bg2)}
+.browser-chrome{background:#1a1a1d;padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.browser-dots{display:flex;gap:5px}
+.browser-dots span{width:10px;height:10px;border-radius:50%}
+.browser-url{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 12px;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace}
+
+/* ── App header ── */
+.app-header{display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px;height:46px;background:var(--bg2);gap:8px;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:7px;cursor:pointer;flex-shrink:0}
+.logo-dot{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.logo-text{font-size:14px;font-weight:700;color:var(--text);font-family:'DM Serif Display',serif}
+
+/* Header search */
+.header-search{flex:1;min-width:0;max-width:340px;position:relative;display:flex;align-items:center}
+.header-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--text3)}
+.header-search input{width:100%;height:32px;padding:0 10px 0 32px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--text2);font-family:'DM Sans',sans-serif;outline:none}
+.header-search input::placeholder{color:var(--text3)}
+.header-search input:focus{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim)}
+.search-active input{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim)}
+
+/* Nav dropdown */
+.desktop-nav{display:flex;align-items:center;gap:2px}
+.nav-btn{display:flex;align-items:center;gap:5px;padding:0 10px;height:30px;font-size:12px;background:none;border:1px solid transparent;border-radius:var(--r);color:var(--text3);font-weight:400;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;transition:all .12s}
+.nav-btn:hover{color:var(--text2);background:var(--bg3)}
+.nav-btn.active{color:var(--text);border-color:var(--border2);font-weight:500}
+.nav-btn svg{transition:transform .15s;flex-shrink:0}
+.nav-btn.open svg.chevron{transform:rotate(180deg)}
+
+.dropdown-wrap{position:relative}
+.dropdown-menu{position:absolute;top:calc(100% + 5px);left:0;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);min-width:210px;box-shadow:0 10px 28px rgba(0,0,0,.6);z-index:50;overflow:hidden;padding:4px 0}
+.dd-item{display:flex;align-items:center;gap:9px;padding:9px 14px;width:100%;background:none;border:none;color:var(--text2);font-size:13px;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.dd-item:hover{background:var(--bg3)}
+.dd-item.active{background:var(--bg3);color:var(--text);font-weight:500}
+.dd-item.disabled{opacity:.4;cursor:not-allowed;justify-content:space-between}
+.dd-item.disabled:hover{background:none}
+.dd-soon{font-size:9px;background:var(--bg4);color:var(--text3);padding:2px 6px;border-radius:4px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.dd-sep{height:1px;background:var(--border);margin:4px 0}
+
+/* Icon buttons */
+.icon-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:none;border:1px solid transparent;border-radius:var(--r);color:var(--text3);cursor:pointer;flex-shrink:0;padding:0}
+.icon-btn:hover{color:var(--text2);background:var(--bg3)}
+.icon-btn.active{color:var(--amber);border-color:var(--border2)}
+.right-icons{margin-left:auto;display:flex;align-items:center;gap:4px}
+
+/* ── App body ── */
+.app-body{height:420px;display:flex;overflow:hidden}
+
+/* Split view */
+.list-panel{width:340px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.list-panel-header{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.search-bar-mini{position:relative;display:flex;align-items:center}
+.search-bar-mini svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+.search-bar-mini input{width:100%;padding:6px 10px 6px 30px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
+.filter-row{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.pill{font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer}
+.pill.active-green{background:#34d39918;border-color:#34d39944;color:var(--green)}
+.result-list{flex:1;overflow-y:auto}
+.result-row{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+.result-row:hover{background:var(--bg3)}
+.result-row.selected{background:var(--amber-dim)}
+.result-case{font-size:11px;color:var(--amber);font-family:'DM Mono',monospace;margin-bottom:2px}
+.result-title{font-size:13px;color:var(--text);font-weight:400;margin-bottom:3px;font-family:'DM Serif Display',serif}
+.result-meta{font-size:10px;color:var(--text3);display:flex;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:500}
+.badge-green{background:var(--green-dim);color:var(--green)}
+.badge-red{background:#f8717118;color:var(--red)}
+.badge-yellow{background:#fbbf2418;color:#fbbf24}
+
+.detail-panel{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.detail-header{padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.detail-case-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.detail-case-num{font-size:12px;color:var(--amber);font-family:'DM Mono',monospace}
+.detail-employer{font-size:15px;color:var(--text);font-family:'DM Serif Display',serif;margin-bottom:2px}
+.detail-meta{font-size:11px;color:var(--text3)}
+.detail-actions{display:flex;gap:6px;margin-top:0;flex-shrink:0}
+.action-btn{display:flex;align-items:center;gap:4px;font-size:11px;padding:5px 9px;border-radius:var(--r);border:1px solid;cursor:pointer;background:none;font-family:'DM Sans',sans-serif;white-space:nowrap}
+.action-btn-graph{color:var(--green);border-color:var(--green)}
+.action-btn-graph:hover{background:var(--green-dim)}
+.action-btn-pdf{color:var(--amber);border-color:var(--amber);text-decoration:none}
+.action-btn-pdf:hover{background:var(--amber-dim)}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.tab{padding:9px 13px;font-size:12px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif}
+.tab.active{border-bottom-color:var(--amber);color:var(--amber);font-weight:500}
+.detail-body{flex:1;padding:20px 24px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:11px;line-height:1.9;color:var(--text2)}
+mark{background:var(--amber-dim);color:var(--amber2);border-radius:2px;padding:0 2px}
+
+/* ── Mobile drawer ── */
+.drawer-overlay{position:absolute;inset:0;z-index:100;background:rgba(0,0,0,.55);display:flex}
+.drawer{width:260px;height:100%;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.drawer-header{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.drawer-logo{font-size:14px;font-weight:700;color:var(--amber);font-family:'DM Serif Display',serif;display:flex;align-items:center;gap:7px}
+.drawer-close{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text3);cursor:pointer;padding:0;font-size:14px}
+.drawer-section{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:12px 14px 3px}
+.drawer-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:none;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;width:100%;text-align:left;font-family:'DM Sans',sans-serif}
+.drawer-item:hover{background:var(--bg3)}
+.drawer-item.active{background:var(--amber-dim);color:var(--amber)}
+.drawer-item svg{flex-shrink:0;opacity:.65}
+.drawer-item.active svg{opacity:1}
+
+/* Mobile header */
+.hamburger{display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:none;border:none;color:var(--text2);cursor:pointer;border-radius:var(--r);flex-shrink:0;padding:0}
+.hamburger:hover{background:var(--bg3)}
+
+/* ── Mobile phone shell ── */
+.phone{width:375px;border:2px solid var(--border2);border-radius:28px;overflow:hidden;background:var(--bg);box-shadow:0 20px 60px rgba(0,0,0,.7);position:relative}
+.phone-notch{height:10px;background:#1a1a1d;display:flex;align-items:center;justify-content:center}
+
+/* ── iPad shell ── */
+.ipad{width:768px;border:2px solid var(--border2);border-radius:16px;overflow:hidden;background:var(--bg);box-shadow:0 20px 60px rgba(0,0,0,.7)}
+.ipad-chrome{height:8px;background:#1a1a1d}
+
+/* Section divider */
+.section-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:28px 32px 4px;border-top:1px solid var(--border);margin-top:20px}
+
+/* ── Citation graph hint ── */
+.graph-hint{font-size:10px;color:var(--text3);padding:4px 16px 10px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.graph-canvas{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg);position:relative;min-height:280px}
+svg.graph-svg{width:100%;height:100%;position:absolute;inset:0}
+.node-primary{fill:#f59e0b;stroke:#0e0e0f;stroke-width:1.5}
+.node-secondary{fill:#3a3a3f;stroke:#5a5a68;stroke-width:1}
+.node-label{fill:var(--text2);font-size:9px;font-family:'DM Mono',monospace;pointer-events:none}
+.edge{stroke:#3a3a3f;stroke-width:1}
+.graph-controls{display:flex;align-items:center;gap:6px;padding:10px 16px;border-top:1px solid var(--border);background:var(--bg2);flex-shrink:0;font-size:10px;color:var(--text3)}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: DESKTOP — DEFAULT STATE                                -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="section-title" style="border-top:none;margin-top:0">Desktop — Default (no search active)</div>
+<div class="frame-row">
+  <div class="frame">
+    <div class="frame-label">Full-width header with grouped nav</div>
+    <div class="ipad">
+      <div class="ipad-chrome"></div>
+      <!-- Header -->
+      <div class="app-header">
+        <div class="logo">
+          <div class="logo-dot"></div>
+          <span class="logo-text">Casebase</span>
+        </div>
+        <!-- Search -->
+        <div class="header-search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input placeholder="Search all…">
+        </div>
+        <!-- Nav groups -->
+        <div class="desktop-nav">
+          <div class="dropdown-wrap">
+            <button class="nav-btn" onclick="toggleDD('case-law-dd',this)">
+              Case Law
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dropdown-menu" id="case-law-dd" style="display:none">
+              <button class="dd-item active">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                BALCA Decisions
+              </button>
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                AAO Decisions
+              </button>
+              <div class="dd-sep"></div>
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>
+                Citation Graph
+              </button>
+            </div>
+          </div>
+
+          <div class="dropdown-wrap">
+            <button class="nav-btn" onclick="toggleDD('regs-dd',this)">
+              Statutes &amp; Regs
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dropdown-menu" id="regs-dd" style="display:none">
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Regulations (CFR)
+              </button>
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Policy Manuals
+              </button>
+            </div>
+          </div>
+
+          <div class="dropdown-wrap">
+            <button class="nav-btn" onclick="toggleDD('tools-dd',this)">
+              Tools
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dropdown-menu" id="tools-dd" style="display:none">
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                PERM Comparer
+              </button>
+              <div class="dd-sep"></div>
+              <div class="dd-item disabled">
+                <span style="display:flex;align-items:center;gap:9px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  Letter Assist
+                </span>
+                <span class="dd-soon">Soon</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dropdown-wrap">
+            <button class="nav-btn" onclick="toggleDD('data-dd',this)">
+              Data
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dropdown-menu" id="data-dd" style="display:none">
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                DOL Data
+              </button>
+              <div class="dd-sep"></div>
+              <div class="dd-item disabled">
+                <span style="display:flex;align-items:center;gap:9px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  USCIS Data
+                </span>
+                <span class="dd-soon">Soon</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="nav-btn" style="gap:6px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Visa Bulletin
+          </button>
+        </div>
+
+        <div class="right-icons">
+          <button class="icon-btn" title="Projects">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </button>
+        </div>
+      </div>
+      <!-- Body placeholder -->
+      <div style="height:400px;display:flex;align-items:center;justify-content:center;color:var(--text3);flex-direction:column;gap:10px">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span style="font-size:13px">BALCA Research view</span>
+      </div>
+    </div>
+    <div class="annotation">
+      <strong>Header (left → right):</strong> logo · search bar · 4 grouped dropdowns · Visa Bulletin · Projects icon<br>
+      Click any dropdown button above to see the menu open.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: CASE LAW DROPDOWN OPEN                                 -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="section-title">Desktop — "Case Law" dropdown open · BALCA detail with Graph button</div>
+<div class="frame-row">
+
+  <!-- Dropdown open -->
+  <div class="frame">
+    <div class="frame-label">Case Law dropdown open</div>
+    <div style="width:480px;border:1px solid var(--border2);border-radius:var(--rl);overflow:hidden;background:var(--bg2)">
+      <div class="app-header" style="position:relative">
+        <div class="logo"><div class="logo-dot"></div><span class="logo-text">Casebase</span></div>
+        <div class="header-search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input placeholder="Search all…">
+        </div>
+        <div class="desktop-nav">
+          <div class="dropdown-wrap" style="position:relative">
+            <button class="nav-btn active open">
+              Case Law
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dropdown-menu" style="display:block">
+              <button class="dd-item active">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                BALCA Decisions
+              </button>
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                AAO Decisions
+              </button>
+              <div class="dd-sep"></div>
+              <button class="dd-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>
+                Citation Graph
+              </button>
+            </div>
+          </div>
+          <button class="nav-btn">Statutes &amp; Regs <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nav-btn">Tools <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
+        <div class="right-icons">
+          <button class="icon-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+        </div>
+      </div>
+      <div style="height:200px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px">content area</div>
+    </div>
+    <div class="annotation"><strong>Active group</strong> highlights the button · chevron rotates up · menu overlays content</div>
+  </div>
+
+  <!-- Decision detail with graph button -->
+  <div class="frame">
+    <div class="frame-label">BALCA decision detail — new "Graph" button</div>
+    <div style="width:560px;border:1px solid var(--border2);border-radius:var(--rl);overflow:hidden">
+      <div class="detail-header">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div class="detail-case-row">
+              <span class="detail-case-num">2023-PER-00481</span>
+              <span class="badge badge-green">
+                <span style="width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block"></span>
+                Affirmed
+              </span>
+            </div>
+            <div class="detail-employer">Acme Technologies Inc.</div>
+            <div class="detail-meta">Software Engineer · 2023-09-14 · Panel III</div>
+          </div>
+          <div class="detail-actions">
+            <button class="action-btn action-btn-graph">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>
+              Graph
+            </button>
+            <a class="action-btn action-btn-pdf" href="#">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              PDF
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active">Opinion</button>
+        <button class="tab">Regulations <span style="font-size:9px;background:var(--bg4);color:var(--text3);padding:1px 4px;border-radius:3px;margin-left:2px">3</span></button>
+        <button class="tab">Citations <span style="font-size:9px;background:var(--bg4);color:var(--text3);padding:1px 4px;border-radius:3px;margin-left:2px">7</span></button>
+        <button class="tab">Notes</button>
+      </div>
+      <div class="detail-body">
+        This matter involves an appeal from the denial of a PERM labor certification
+application for the position of Software Engineer. The <mark>employer</mark> filed
+a recruitment campaign consisting of job postings on the company website,
+job boards, and university outreach programs…
+
+The CO's denial was based on alleged deficiencies in the recruitment
+steps. However, the employer demonstrated that all required recruitment
+methods were properly documented and in compliance with 20 C.F.R.
+§ 656.17(e). We therefore AFFIRM the CO's decision and find in favor
+of the petitioner.
+      </div>
+    </div>
+    <div class="annotation">
+      <strong>Graph button</strong> (green) appears in every BALCA &amp; AAO decision header.<br>
+      Clicking it seeds the Citation Graph with this case number and auto-runs the search.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: HEADER SEARCH IN USE                                   -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="section-title">Desktop — Persistent "Search All" bar in action</div>
+<div class="frame-row">
+  <div class="frame">
+    <div class="frame-label">User typed a query — hits Enter → navigates to Search All view</div>
+    <div style="width:700px;border:1px solid var(--border2);border-radius:var(--rl);overflow:hidden;background:var(--bg2)">
+      <div class="app-header">
+        <div class="logo"><div class="logo-dot"></div><span class="logo-text">Casebase</span></div>
+        <div class="header-search search-active">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input value="specialty occupation software developer" style="color:var(--text)">
+          <button style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:18px;height:18px;display:flex;align-items:center;justify-content:center;background:var(--bg4);border:none;border-radius:50%;color:var(--text3);font-size:11px;cursor:pointer;padding:0">×</button>
+        </div>
+        <div class="desktop-nav">
+          <button class="nav-btn">Case Law <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nav-btn">Statutes &amp; Regs <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nav-btn">Tools <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nav-btn">Data <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nav-btn active">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Search All
+          </button>
+        </div>
+        <div class="right-icons">
+          <button class="icon-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+        </div>
+      </div>
+      <!-- Simulated search results -->
+      <div style="padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text3)">42 results across</span>
+        <span style="font-size:10px;padding:2px 8px;background:var(--amber-dim);color:var(--amber2);border-radius:20px;border:1px solid #f59e0b44">BALCA</span>
+        <span style="font-size:10px;padding:2px 8px;background:var(--blue-dim);color:var(--blue);border-radius:20px;border:1px solid #60a5fa44">AAO</span>
+        <span style="font-size:10px;padding:2px 8px;background:var(--green-dim);color:var(--green);border-radius:20px;border:1px solid #34d39944">Regulations</span>
+      </div>
+      <div>
+        <div class="result-row" style="display:flex;align-items:center;gap:8px;padding:10px 16px">
+          <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--amber-dim);color:var(--amber2);font-weight:600;flex-shrink:0">BALCA</span>
+          <div>
+            <div style="font-size:12px;color:var(--text);font-family:'DM Serif Display',serif">Meridian Tech v. DOL · 2023-PER-00481</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">…employer's claim of <mark>specialty occupation</mark> for the <mark>software developer</mark> position was properly documented…</div>
+          </div>
+        </div>
+        <div class="result-row" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)">
+          <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--blue-dim);color:var(--blue);font-weight:600;flex-shrink:0">AAO</span>
+          <div>
+            <div style="font-size:12px;color:var(--text);font-family:'DM Serif Display',serif">Matter of Global IT Solutions · I-129 H-1B</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">…the petitioner must demonstrate that the proffered position qualifies as a <mark>specialty occupation</mark>…</div>
+          </div>
+        </div>
+        <div class="result-row" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)">
+          <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--green-dim);color:var(--green);font-weight:600;flex-shrink:0">CFR</span>
+          <div>
+            <div style="font-size:12px;color:var(--text)">8 CFR § 214.2(h)(4)(ii) — Definition of specialty occupation</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">…at minimum a bachelor's degree or equivalent in a specific <mark>specialty</mark> related to the position…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">
+      Query from the header bar is passed into <strong>Search All</strong> and auto-executes on mount.<br>
+      The "Search All" nav button lights up to show the active view. The × clears the bar.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: CITATION GRAPH                                         -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="section-title">Citation Graph — opened from a BALCA decision · touch hints updated</div>
+<div class="frame-row">
+  <div class="frame">
+    <div class="frame-label">Graph seeded with "2023-PER-00481" from Graph button click</div>
+    <div style="width:700px;border:1px solid var(--border2);border-radius:var(--rl);overflow:hidden">
+      <div class="app-header">
+        <div class="logo"><div class="logo-dot"></div><span class="logo-text">Casebase</span></div>
+        <div class="header-search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input placeholder="Search all…">
+        </div>
+        <div class="desktop-nav">
+          <button class="nav-btn active">Case Law <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
+        <div class="right-icons"><button class="icon-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button></div>
+      </div>
+      <!-- Graph toolbar -->
+      <div style="padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <div style="position:relative;flex:1;max-width:400px;display:flex;align-items:center">
+          <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input value="2023-PER-00481" style="padding-left:30px;height:34px;color:var(--text)">
+        </div>
+        <button class="nav-btn active" style="height:34px;border-color:var(--border2)">Search</button>
+        <div class="graph-hint" style="padding:0;border:none;background:none;margin-left:auto">
+          <span style="font-size:10px;color:var(--text3)">solid = matched · faded = cited hub · <strong style="color:var(--text2);font-weight:500">hover or tap</strong> to highlight</span>
+        </div>
+      </div>
+      <!-- Graph canvas -->
+      <div class="graph-canvas" style="height:300px">
+        <svg viewBox="0 0 700 300" style="width:100%;height:100%">
+          <!-- Edges -->
+          <line x1="350" y1="150" x2="180" y2="90" stroke="#3a3a3f" stroke-width="1.2"/>
+          <line x1="350" y1="150" x2="510" y2="80" stroke="#3a3a3f" stroke-width="1.2"/>
+          <line x1="350" y1="150" x2="220" y2="230" stroke="#3a3a3f" stroke-width="1.2"/>
+          <line x1="350" y1="150" x2="490" y2="210" stroke="#3a3a3f" stroke-width="1.2"/>
+          <line x1="350" y1="150" x2="120" y2="180" stroke="#3a3a3f" stroke-width="1.2"/>
+          <line x1="350" y1="150" x2="580" y2="155" stroke="#3a3a3f" stroke-width="1.2"/>
+          <!-- Secondary to secondary edges (faint) -->
+          <line x1="180" y1="90" x2="510" y2="80" stroke="#2a2a2e" stroke-width="1"/>
+          <line x1="220" y1="230" x2="490" y2="210" stroke="#2a2a2e" stroke-width="1"/>
+          <!-- Primary node (searched case) -->
+          <circle cx="350" cy="150" r="28" fill="#f59e0b" stroke="#0e0e0f" stroke-width="2"/>
+          <text x="350" y="146" text-anchor="middle" fill="#0e0e0f" font-size="7" font-family="DM Mono" font-weight="700">2023-PER</text>
+          <text x="350" y="156" text-anchor="middle" fill="#0e0e0f" font-size="7" font-family="DM Mono" font-weight="700">-00481</text>
+          <!-- Secondary nodes -->
+          <circle cx="180" cy="90" r="17" fill="#2a2a2e" stroke="#5a5a68" stroke-width="1"/>
+          <text x="180" y="87" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">2021-PER</text>
+          <text x="180" y="96" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">-00219</text>
+
+          <circle cx="510" cy="80" r="20" fill="#2a2a2e" stroke="#5a5a68" stroke-width="1"/>
+          <text x="510" y="77" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">2022-PER</text>
+          <text x="510" y="86" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">-00874</text>
+
+          <circle cx="220" cy="230" r="14" fill="#2a2a2e" stroke="#5a5a68" stroke-width="1"/>
+          <text x="220" y="228" text-anchor="middle" fill="#c6c6d1" font-size="6" font-family="DM Mono">2020-PER</text>
+          <text x="220" y="236" text-anchor="middle" fill="#c6c6d1" font-size="6" font-family="DM Mono">-00103</text>
+
+          <circle cx="490" cy="210" r="16" fill="#2a2a2e" stroke="#5a5a68" stroke-width="1"/>
+          <text x="490" y="207" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">2022-PER</text>
+          <text x="490" y="215" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">-01155</text>
+
+          <circle cx="120" cy="180" r="13" fill="#2a2a2e" stroke="#5a5a68" stroke-width="1"/>
+          <text x="120" y="178" text-anchor="middle" fill="#c6c6d1" font-size="5.5" font-family="DM Mono">2019-PER</text>
+          <text x="120" y="186" text-anchor="middle" fill="#c6c6d1" font-size="5.5" font-family="DM Mono">-00044</text>
+
+          <circle cx="580" cy="155" r="22" fill="#2a2a2e" stroke="#5a5a68" stroke-width="1"/>
+          <text x="580" y="151" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">2023-PER</text>
+          <text x="580" y="160" text-anchor="middle" fill="#c6c6d1" font-size="6.5" font-family="DM Mono">-00312</text>
+        </svg>
+      </div>
+      <div class="graph-controls">
+        <span>6 nodes · 6 edges</span>
+        <span style="margin-left:auto">Tap to open details · drag to reposition · pinch to zoom</span>
+      </div>
+    </div>
+    <div class="annotation">
+      Auto-searched on mount because it was seeded from the decision's <strong>Graph</strong> button.<br>
+      Hint text updated: "hover or tap" and "Tap to open details" for touch parity.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: MOBILE PHONE                                           -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="section-title">Phone (375px) — Hamburger header · Slide-in drawer · Full-screen detail</div>
+<div class="frame-row" style="gap:24px">
+
+  <!-- Phone: default state -->
+  <div class="frame">
+    <div class="frame-label">Default — BALCA list</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="app-header" style="padding:0 10px;gap:6px">
+        <button class="hamburger">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="logo" style="flex-shrink:0"><div class="logo-dot"></div><span class="logo-text" style="font-size:13px">Casebase</span></div>
+        <div class="header-search" style="max-width:none;flex:1">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input placeholder="Search all…" style="font-size:11px">
+        </div>
+        <button class="icon-btn" style="flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+      </div>
+      <!-- Full-width list -->
+      <div style="height:480px;overflow-y:auto;background:var(--bg)">
+        <div style="padding:10px 12px;background:var(--bg2);border-bottom:1px solid var(--border)">
+          <div style="position:relative;display:flex;align-items:center">
+            <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input placeholder="Search BALCA…" style="padding-left:28px;height:34px;font-size:12px">
+          </div>
+        </div>
+        <div style="padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap">
+          <span class="pill">Affirmed</span>
+          <span class="pill active-green">Reversed</span>
+          <span class="pill">Remanded</span>
+        </div>
+        <div class="result-row" style="padding:10px 12px">
+          <div class="result-case">2023-PER-00481</div>
+          <div class="result-title">Acme Technologies Inc.</div>
+          <div class="result-meta"><span>2023-09-14</span><span>Panel III</span><span class="badge badge-green">Affirmed</span></div>
+        </div>
+        <div class="result-row" style="padding:10px 12px">
+          <div class="result-case">2023-PER-00412</div>
+          <div class="result-title">Global Staffing LLC</div>
+          <div class="result-meta"><span>2023-08-02</span><span>Panel I</span><span class="badge badge-red">Reversed</span></div>
+        </div>
+        <div class="result-row" style="padding:10px 12px">
+          <div class="result-case">2023-PER-00387</div>
+          <div class="result-title">Eastern Systems Corp.</div>
+          <div class="result-meta"><span>2023-07-18</span><span>Panel II</span><span class="badge badge-yellow">Remanded</span></div>
+        </div>
+        <div class="result-row" style="padding:10px 12px">
+          <div class="result-case">2022-PER-01988</div>
+          <div class="result-title">Pacific Innovations Ltd.</div>
+          <div class="result-meta"><span>2022-12-05</span><span>Panel I</span><span class="badge badge-green">Affirmed</span></div>
+        </div>
+        <div class="result-row" style="padding:10px 12px">
+          <div class="result-case">2022-PER-01744</div>
+          <div class="result-title">NextGen Consulting Group</div>
+          <div class="result-meta"><span>2022-10-20</span><span>Panel III</span><span class="badge badge-red">Reversed</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Hamburger · logo · search bar · Projects icon.<br>Full-width list — desktop nav is hidden.</div>
+  </div>
+
+  <!-- Phone: drawer open -->
+  <div class="frame">
+    <div class="frame-label">Drawer open (tap hamburger)</div>
+    <div class="phone" style="position:relative">
+      <div class="phone-notch"></div>
+      <div class="app-header" style="padding:0 10px;gap:6px">
+        <button class="hamburger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <div class="logo" style="flex-shrink:0"><div class="logo-dot"></div><span class="logo-text" style="font-size:13px">Casebase</span></div>
+        <div class="header-search" style="max-width:none;flex:1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input placeholder="Search all…" style="font-size:11px"></div>
+        <button class="icon-btn" style="flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+      </div>
+      <!-- Body behind overlay -->
+      <div style="height:480px;background:var(--bg);position:relative">
+        <!-- Overlay -->
+        <div style="position:absolute;inset:0;z-index:10;background:rgba(0,0,0,.55);display:flex">
+          <div class="drawer">
+            <div class="drawer-header">
+              <div class="drawer-logo"><div style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></div>Casebase</div>
+              <button class="drawer-close">✕</button>
+            </div>
+            <!-- Home -->
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</button>
+            <div class="drawer-section">Case Law</div>
+            <button class="drawer-item active"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>BALCA Decisions</button>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>AAO Decisions</button>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>Citation Graph</button>
+            <div class="drawer-section">Statutes &amp; Regs</div>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Regulations (CFR)</button>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Policy Manuals</button>
+            <div class="drawer-section">Tools</div>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>PERM Comparer</button>
+            <div class="drawer-section">Data</div>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>DOL Data</button>
+            <div class="drawer-section">Other</div>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Visa Bulletin</button>
+            <button class="drawer-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Projects</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Slides in from the left · dimmed overlay closes it.<br><strong>Active item</strong> highlighted in amber. All sections visible.</div>
+  </div>
+
+  <!-- Phone: detail open (full screen) -->
+  <div class="frame">
+    <div class="frame-label">Detail open — full-screen (list hidden)</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="app-header" style="padding:0 10px;gap:6px">
+        <button class="hamburger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <div class="logo" style="flex-shrink:0"><div class="logo-dot"></div><span class="logo-text" style="font-size:13px">Casebase</span></div>
+        <div class="header-search" style="max-width:none;flex:1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input placeholder="Search all…" style="font-size:11px"></div>
+        <button class="icon-btn" style="flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+      </div>
+      <!-- Full-screen detail -->
+      <div style="height:480px;display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:12px 12px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+                <span style="font-size:11px;color:var(--amber);font-family:'DM Mono',monospace">2023-PER-00481</span>
+                <span class="badge badge-green"><span style="width:4px;height:4px;border-radius:50%;background:var(--green);display:inline-block"></span>Affirmed</span>
+              </div>
+              <div style="font-size:14px;color:var(--text);font-family:'DM Serif Display',serif;margin-bottom:2px">Acme Technologies</div>
+              <div style="font-size:10px;color:var(--text3)">2023-09-14 · Panel III</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+              <button class="action-btn action-btn-graph" style="font-size:10px;padding:4px 7px">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>Graph
+              </button>
+              <a class="action-btn action-btn-pdf" href="#" style="font-size:10px;padding:4px 7px">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" style="font-size:11px;padding:7px 10px">Opinion</button>
+          <button class="tab" style="font-size:11px;padding:7px 10px">Regs</button>
+          <button class="tab" style="font-size:11px;padding:7px 10px">Citations</button>
+          <button class="tab" style="font-size:11px;padding:7px 10px">Notes</button>
+        </div>
+        <div class="detail-body" style="font-size:10.5px;padding:14px 14px;flex:1;overflow-y:auto">
+          This matter involves an appeal from the denial of a PERM labor
+certification application. The <mark>employer</mark> submitted documentation
+demonstrating compliance with all required recruitment steps under
+20 C.F.R. § 656.17(e).
+
+The Board finds that the CO's denial was not supported by substantial
+evidence. We therefore AFFIRM the decision on alternative grounds and
+find in favor of the employer…
+        </div>
+      </div>
+    </div>
+    <div class="annotation">List panel hidden by CSS :has(). Detail fills full phone height.<br><strong>Graph</strong> and <strong>PDF</strong> buttons stacked vertically to fit narrow header.</div>
+  </div>
+</div>
+
+<div style="height:40px"></div>
+
+<script>
+function toggleDD(id, btn) {
+  const menu = document.getElementById(id);
+  const isOpen = menu.style.display === 'block';
+  // close all
+  document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('open'));
+  if (!isOpen) {
+    menu.style.display = 'block';
+    btn.classList.add('open');
+  }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dropdown-wrap')) {
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('open'));
+  }
+});
+</script>
+</body>
+</html>

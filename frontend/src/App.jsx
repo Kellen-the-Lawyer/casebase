@@ -336,7 +336,7 @@ function Spinner() {
 }
 
 // ── Search view — owns all search + detail state ──────────────────────────────
-function SearchView({ externalDecisionId, externalQuery }) {
+function SearchView({ externalDecisionId, externalQuery, onViewGraph }) {
   const [q, setQ] = useState("");
   // Basic visible filters
   const [outcome, setOutcome] = useState("");
@@ -410,10 +410,10 @@ function SearchView({ externalDecisionId, externalQuery }) {
   const splitView = selectedId && (searched || !!externalDecisionId);
 
   return (
-    <div style={{ height: "100%", display: "flex", overflow: "hidden" }}>
+    <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
 
       {/* ── Left panel ── */}
-      <div style={{
+      <div className="search-list-panel" style={{
         display: "flex", flexDirection: "column", overflow: "hidden",
         width: splitView ? 340 : "100%", flexShrink: 0,
         borderRight: splitView ? "1px solid var(--border)" : "none",
@@ -593,11 +593,12 @@ function SearchView({ externalDecisionId, externalQuery }) {
 
       {/* ── Right panel: decision detail ── */}
       {splitView && (
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
+        <div className="search-detail-panel" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
           <DecisionDetail
             decisionId={selectedId}
             query={activeQuery}
             onNavigate={(id) => setSelectedId(id)}
+            onViewGraph={onViewGraph}
           />
         </div>
       )}
@@ -646,7 +647,7 @@ function ResultRow({ row, onSelect, selected, compact, index, activeQuery }) {
 }
 
 // ── Decision detail ───────────────────────────────────────────────────────────
-function DecisionDetail({ decisionId, query, onNavigate }) {
+function DecisionDetail({ decisionId, query, onNavigate, onViewGraph }) {
   const { data, loading } = useFetch(decisionId ? `${API}/decisions/${decisionId}` : null);
   const [activeTab, setActiveTab] = useState("text");
   const [newNote, setNewNote] = useState("");
@@ -773,6 +774,15 @@ function DecisionDetail({ decisionId, query, onNavigate }) {
             </div>
           </div>
           <InDocSearch hook={docSearch} accentColor="var(--amber)" />
+          {onViewGraph && data?.case_number && (
+            <button onClick={() => onViewGraph(data.case_number)}
+              style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--green)", padding: "5px 10px", border: "1px solid var(--green)", borderRadius: "var(--radius)", whiteSpace: "nowrap", flexShrink: 0, background: "none" }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--green-dim)"}
+              onMouseLeave={e => e.currentTarget.style.background = ""}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>
+              Graph
+            </button>
+          )}
           <a href={`${API}/decisions/${decisionId}/pdf`} target="_blank" rel="noreferrer"
             style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--amber)", textDecoration: "none", padding: "5px 10px", border: "1px solid var(--amber)", borderRadius: "var(--radius)", whiteSpace: "nowrap", flexShrink: 0 }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--amber-dim)"}
@@ -1446,8 +1456,8 @@ function RegulationsView() {
   const splitView = searched && !!selectedId;
 
   return (
-    <div style={{ height: "100%", display: "flex", overflow: "hidden" }}>
-      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", width: splitView ? 340 : "100%", flexShrink: 0, borderRight: splitView ? "1px solid var(--border)" : "none", transition: "width 0.25s ease" }}>
+    <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
+      <div className="search-list-panel" style={{ display: "flex", flexDirection: "column", overflow: "hidden", width: splitView ? 340 : "100%", flexShrink: 0, borderRight: splitView ? "1px solid var(--border)" : "none", transition: "width 0.25s ease" }}>
 
         {/* Search bar — mirrors BALCA: centered landing, collapsed after search */}
         <div style={{ padding: searched ? "12px 16px" : "0", flex: searched ? "0 0 auto" : "1", display: "flex", flexDirection: "column", justifyContent: searched ? "flex-start" : "center", alignItems: "center", borderBottom: searched ? "1px solid var(--border)" : "none" }}>
@@ -1514,7 +1524,7 @@ function RegulationsView() {
       </div>
 
       {splitView && (
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
+        <div className="search-detail-panel" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
           <RegulationDetail docId={selectedId} query={activeQuery} />
         </div>
       )}
@@ -1620,8 +1630,8 @@ function PolicyView() {
   const totalSections = stats?.total_sections ?? (allDocs?.length ?? "…");
 
   return (
-    <div style={{ height: "100%", display: "flex", overflow: "hidden" }}>
-      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", width: splitView ? 340 : "100%", flexShrink: 0, borderRight: splitView ? "1px solid var(--border)" : "none", transition: "width 0.25s ease" }}>
+    <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
+      <div className="search-list-panel" style={{ display: "flex", flexDirection: "column", overflow: "hidden", width: splitView ? 340 : "100%", flexShrink: 0, borderRight: splitView ? "1px solid var(--border)" : "none", transition: "width 0.25s ease" }}>
 
         <div style={{ padding: searched ? "12px 16px" : "0", flex: searched ? "0 0 auto" : "1", display: "flex", flexDirection: "column", justifyContent: searched ? "flex-start" : "center", alignItems: "center", borderBottom: searched ? "1px solid var(--border)" : "none" }}>
           {!searched && (
@@ -1688,7 +1698,7 @@ function PolicyView() {
       </div>
 
       {splitView && (
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
+        <div className="search-detail-panel" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
           <PolicyDetail docId={selectedId} query={activeQuery} />
         </div>
       )}
@@ -2663,7 +2673,7 @@ function AaoBadge({ label, small }) {
 }
 
 // ── AAO Search View ───────────────────────────────────────────────────────────
-function AAOSearchView({ externalDecisionId, externalQuery }) {
+function AAOSearchView({ externalDecisionId, externalQuery, onViewGraph }) {
   const [q, setQ] = useState("");
   const [outcome, setOutcome] = useState("");
   const [formType, setFormType] = useState("");
@@ -2725,8 +2735,8 @@ function AAOSearchView({ externalDecisionId, externalQuery }) {
   const splitView = selectedId && (searched || !!externalDecisionId);
 
   return (
-    <div style={{ height: "100%", display: "flex", overflow: "hidden" }}>
-      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", width: splitView ? 340 : "100%", flexShrink: 0, borderRight: splitView ? "1px solid var(--border)" : "none", transition: "width 0.25s ease" }}>
+    <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
+      <div className="search-list-panel" style={{ display: "flex", flexDirection: "column", overflow: "hidden", width: splitView ? 340 : "100%", flexShrink: 0, borderRight: splitView ? "1px solid var(--border)" : "none", transition: "width 0.25s ease" }}>
         <div style={{ padding: searched ? "12px 16px" : "0", flex: searched ? "0 0 auto" : "1", display: "flex", flexDirection: "column", justifyContent: searched ? "flex-start" : "center", alignItems: "center", borderBottom: searched ? "1px solid var(--border)" : "none" }}>
           {!searched && (
             <div style={{ marginBottom: 28, textAlign: "center" }}>
@@ -2794,11 +2804,11 @@ function AAOSearchView({ externalDecisionId, externalQuery }) {
         </div>
       </div>
       {splitView && (
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
+        <div className="search-detail-panel" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
           <AAODecisionDetail decisionId={selectedId} query={activeQuery} precedentMap={precedentMap} onNavigate={(id, type) => {
             if (type === 'precedent' || type === 'adopted') setPrecId(id);
             else setSelectedId(id);
-          }} />
+          }} onViewGraph={onViewGraph} />
         </div>
       )}
 
@@ -2888,7 +2898,7 @@ function PrecedentDetail({ id, onClose }) {
   );
 }
 
-function AAODecisionDetail({ decisionId, query, onNavigate, precedentMap }) {
+function AAODecisionDetail({ decisionId, query, onNavigate, precedentMap, onViewGraph }) {
   const { data, loading } = useFetch(decisionId ? `${API}/aao/decisions/${decisionId}` : null);
   const firstMatchRef = useRef(null);
 
@@ -2971,6 +2981,15 @@ function AAODecisionDetail({ decisionId, query, onNavigate, precedentMap }) {
             {data.regulation && <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 3 }}>{data.regulation}</div>}
             {data.decision_date && <span style={{ fontSize: 11, color: "var(--text3)", fontFamily: "'DM Mono', monospace" }}>{data.decision_date}</span>}
           </div>
+          {onViewGraph && (
+            <button onClick={() => onViewGraph(data.title || data.form_type || String(decisionId))}
+              style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--green)", padding: "5px 10px", border: "1px solid var(--green)", borderRadius: "var(--radius)", whiteSpace: "nowrap", flexShrink: 0, background: "none" }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--green-dim)"}
+              onMouseLeave={e => e.currentTarget.style.background = ""}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>
+              Graph
+            </button>
+          )}
           <a href={`${API}/aao/decisions/${decisionId}/pdf`} target="_blank" rel="noreferrer"
             style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--blue)", textDecoration: "none", padding: "5px 10px", border: "1px solid var(--blue)", borderRadius: "var(--radius)", whiteSpace: "nowrap", flexShrink: 0 }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--blue-dim)"}
@@ -2993,8 +3012,8 @@ const CORPUS_META = {
   policy:     { label: "Policy",      accent: "#a78bfa",       dim: "#a78bfa22",         dot: "#a78bfa" },
 };
 
-function SearchAllView({ onNavigate }) {
-  const [q, setQ] = useState("");
+function SearchAllView({ onNavigate, initialQuery }) {
+  const [q, setQ] = useState(initialQuery || "");
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -3011,6 +3030,8 @@ function SearchAllView({ onNavigate }) {
     const data = await res.json();
     setResults(data); setPage(pg); setLoading(false);
   }, [q]);
+
+  useEffect(() => { if (initialQuery?.trim()) search(1); }, []);
 
   // Group by corpus while preserving rank order
   const grouped = {};
@@ -3132,8 +3153,8 @@ const GRAPH_OUTCOME_COLOR = {
   Dismissed: "#5a5a68",
 };
 
-function CitationGraphView({ onNavigate }) {
-  const [q, setQ] = useState("");
+function CitationGraphView({ onNavigate, initialQuery }) {
+  const [q, setQ] = useState(initialQuery || "");
   const [graphData, setGraphData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -3153,6 +3174,8 @@ function CitationGraphView({ onNavigate }) {
     setGraphData(data);
     setLoading(false);
   };
+
+  useEffect(() => { if (initialQuery?.trim()) search(); }, []);
 
   useEffect(() => {
     if (!graphData || !svgRef.current || !graphData.nodes.length) return;
@@ -3426,7 +3449,7 @@ function CitationGraphView({ onNavigate }) {
               ))}
             </div>
             <span style={{ fontSize: 10, color: "var(--text3)" }}>circle size = citations received · number inside = citation count</span>
-            <span style={{ fontSize: 10, color: "var(--text3)" }}>solid = matched search · faded = cited hub · hover to highlight connections</span>
+            <span style={{ fontSize: 10, color: "var(--text3)" }}>solid = matched search · faded = cited hub · hover or tap to highlight connections</span>
           </div>
         )}
       </div>
@@ -3462,7 +3485,7 @@ function CitationGraphView({ onNavigate }) {
           </div>
         )}
 
-        <svg ref={svgRef} style={{ width: "100%", height: "100%", display: "block" }} />
+        <svg ref={svgRef} className="citation-graph-svg" style={{ width: "100%", height: "100%", display: "block" }} />
 
         {/* Hover tooltip */}
         {hovered && !selectedNode && (
@@ -3495,7 +3518,7 @@ function CitationGraphView({ onNavigate }) {
               )}
             </div>
             <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, borderTop: "1px solid var(--border)", paddingTop: 6 }}>
-              Click to open details · drag to reposition
+              Tap to open details · drag to reposition
             </div>
           </div>
         )}
@@ -3879,54 +3902,241 @@ function AskView({ onNavigate }) {
   );
 }
 
+// ── NavDropdown ───────────────────────────────────────────────────────────────
+function NavDropdown({ label, items, currentView, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const openTimer = useRef(null);
+  const closeTimer = useRef(null);
+
+  const isActive = items.some(it => it.type === "item" && it.id === currentView);
+
+  const scheduleOpen  = () => { clearTimeout(closeTimer.current); openTimer.current  = setTimeout(() => setOpen(true),  120); };
+  const scheduleClose = () => { clearTimeout(openTimer.current);  closeTimer.current = setTimeout(() => setOpen(false), 180); };
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="nav-dropdown"
+      onMouseEnter={scheduleOpen} onMouseLeave={scheduleClose}>
+      <button
+        className={`nav-dropdown-btn${isActive ? " active" : ""}${open ? " open" : ""}`}
+        onClick={() => setOpen(o => !o)}>
+        {label}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div className="nav-dropdown-menu" onMouseEnter={scheduleOpen} onMouseLeave={scheduleClose}>
+          {items.map((item, i) => {
+            if (item.type === "sep") return <div key={i} className="nav-dropdown-sep" />;
+            if (item.disabled) return (
+              <div key={item.id} className="nav-dropdown-item disabled">
+                <span style={{ display: "flex", alignItems: "center", gap: 9 }}>{item.icon}{item.label}</span>
+                <span className="nav-dropdown-soon">Soon</span>
+              </div>
+            );
+            return (
+              <button key={item.id}
+                className={`nav-dropdown-item${item.id === currentView ? " active" : ""}`}
+                onClick={() => { setOpen(false); onNavigate(item.id); }}>
+                {item.icon}{item.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [view, setView] = useState("landing");
   const [externalDecision, setExternalDecision] = useState(null);
   const [searchKey, setSearchKey] = useState(0);
+  const [headerQuery, setHeaderQuery] = useState("");
+  const [graphSeed, setGraphSeed] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const goHome = () => { setView("landing"); setExternalDecision(null); setSearchKey(k => k + 1); };
+  const navigate = (id) => { if (id === "landing") { goHome(); } else { setView(id); } };
   const openDecision = (id, query = "", source = "balca") => { setExternalDecision({ id, query, source }); setView(source === "aao" ? "aao" : "balca"); };
   const openFromSearchAll = (corpus, id, query) => {
     if (corpus === "balca") { setExternalDecision({ id, query, source: "balca" }); setView("balca"); }
     else if (corpus === "aao") { setExternalDecision({ id, query, source: "aao" }); setView("aao"); }
     else setView(corpus === "regulation" ? "regulations" : "policy");
   };
+  const openGraph = (caseNumber) => { setGraphSeed(caseNumber); setSearchKey(k => k + 1); setView("citation-graph"); };
 
-  const navItems = [
-    { id: "landing", label: "Home", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-    { id: "balca", label: "BALCA", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-    { id: "aao", label: "AAO", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
-    { id: "search-all", label: "Search All", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> },
-    { id: "regulations", label: "Regs", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> },
-    { id: "policy", label: "Policy", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
-    { id: "ask", label: "Ask AI", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-    { id: "perm-comparer", label: "Tools", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg> },
-    { id: "citation-graph", label: "Graph", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg> },
-    { id: "visa-bulletin", label: "Visa Bulletin", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-    { id: "projects", label: "Projects", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> },
-    { id: "oflc", label: "DOL Data", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> },
+  const handleHeaderSearch = (e) => {
+    e.preventDefault();
+    if (!headerQuery.trim()) return;
+    setSearchKey(k => k + 1);
+    setView("search-all");
+  };
+
+  const icon = {
+    file:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+    globe:  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+    book:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+    books:  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+    link:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>,
+    tool:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
+    letter: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
+    table:  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>,
+    cal:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+    folder: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
+    chat:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+    home:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+    search: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>,
+  };
+
+  const dropdownGroups = [
+    { label: "Case Law", items: [
+      { type: "item", id: "balca",          label: "BALCA Decisions",    icon: icon.file  },
+      { type: "item", id: "aao",            label: "AAO Decisions",      icon: icon.globe },
+      { type: "sep" },
+      { type: "item", id: "citation-graph", label: "Citation Graph",     icon: icon.link  },
+    ]},
+    { label: "Statutes & Regs", items: [
+      { type: "item", id: "regulations",    label: "Regulations (CFR)",  icon: icon.book  },
+      { type: "item", id: "policy",         label: "Policy Manuals",     icon: icon.books },
+    ]},
+    { label: "Tools", items: [
+      { type: "item", id: "perm-comparer",  label: "PERM Comparer",      icon: icon.tool  },
+      { type: "sep" },
+      { type: "item", id: "letter-assist",  label: "Letter Assist",      icon: icon.letter, disabled: true },
+    ]},
+    { label: "Data", items: [
+      { type: "item", id: "oflc",           label: "DOL Data",           icon: icon.table },
+      { type: "sep" },
+      { type: "item", id: "uscis-data",     label: "USCIS Data",         icon: icon.table, disabled: true },
+    ]},
+  ];
+
+  const drawerGroups = [
+    { section: null, items: [
+      { id: "landing",        label: "Home",           icon: icon.home   },
+    ]},
+    { section: "Case Law", items: [
+      { id: "balca",          label: "BALCA Decisions",icon: icon.file   },
+      { id: "aao",            label: "AAO Decisions",  icon: icon.globe  },
+      { id: "citation-graph", label: "Citation Graph", icon: icon.link   },
+    ]},
+    { section: "Statutes & Regs", items: [
+      { id: "regulations",    label: "Regulations (CFR)", icon: icon.book  },
+      { id: "policy",         label: "Policy Manuals",    icon: icon.books },
+    ]},
+    { section: "Tools", items: [
+      { id: "perm-comparer",  label: "PERM Comparer",  icon: icon.tool   },
+    ]},
+    { section: "Data", items: [
+      { id: "oflc",           label: "DOL Data",       icon: icon.table  },
+    ]},
+    { section: "Other", items: [
+      { id: "visa-bulletin",  label: "Visa Bulletin",  icon: icon.cal    },
+      { id: "projects",       label: "Projects",       icon: icon.folder },
+    ]},
   ];
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--border)", padding: "0 20px", height: 46, flexShrink: 0, background: "var(--bg2)", gap: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 20 }}>
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--border)", padding: "0 16px", height: 46, flexShrink: 0, background: "var(--bg2)", gap: 8 }}>
+        {/* Hamburger — mobile only */}
+        <button className="mobile-hamburger" aria-label="Menu" onClick={() => setDrawerOpen(true)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0, cursor: "pointer" }} onClick={goHome}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--amber)" }} />
-          <span onClick={goHome} style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", fontFamily: "'DM Serif Display', serif", cursor: "pointer" }}>Casebase</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", fontFamily: "'DM Serif Display', serif" }}>Casebase</span>
         </div>
-        {navItems.map(n => (
-          <button key={n.id} onClick={() => n.id === "landing" ? goHome() : setView(n.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 12px", height: 30, fontSize: 12, background: "none", border: view === n.id ? `1px solid ${n.id === "aao" ? "#60a5fa44" : n.id === "regulations" ? "#34d39944" : n.id === "policy" ? "#a78bfa44" : n.id === "search-all" ? "#fb718544" : n.id === "citation-graph" ? "#34d39944" : n.id === "ask" ? "#f472b644" : "var(--border2)"}` : "1px solid transparent", borderRadius: "var(--radius)", color: view === n.id ? (n.id === "aao" ? "var(--blue)" : n.id === "regulations" ? "var(--green)" : n.id === "policy" ? "#a78bfa" : n.id === "search-all" ? "#fb7185" : n.id === "citation-graph" ? "var(--green)" : n.id === "ask" ? "#f472b6" : "var(--text)") : "var(--text3)", fontWeight: view === n.id ? 500 : 400 }}>{n.icon}{n.label}</button>
-        ))}
+
+        {/* Persistent Search All */}
+        <form className="header-search" onSubmit={handleHeaderSearch}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input
+            value={headerQuery}
+            onChange={e => setHeaderQuery(e.target.value)}
+            placeholder="Search all…"
+            aria-label="Search all"
+          />
+          {headerQuery && (
+            <button type="button" className="header-search-clear" onClick={() => setHeaderQuery("")} aria-label="Clear">×</button>
+          )}
+        </form>
+
+        {/* Desktop grouped nav */}
+        <nav className="desktop-nav" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {dropdownGroups.map(g => (
+            <NavDropdown key={g.label} label={g.label} items={g.items} currentView={view} onNavigate={navigate} />
+          ))}
+          <button className={`nav-dropdown-btn${view === "visa-bulletin" ? " active" : ""}`}
+            onClick={() => navigate("visa-bulletin")} style={{ gap: 6 }}>
+            {icon.cal} Visa Bulletin
+          </button>
+        </nav>
+
+        {/* Right icons */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+          {/* Projects folder — always visible */}
+          <button className={`header-icon-btn${view === "projects" ? " active" : ""}`}
+            onClick={() => navigate("projects")} title="Projects" aria-label="Projects">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          {/* Ask AI — commented out until built
+          <button className={`header-icon-btn${view === "ask" ? " active" : ""}`}
+            onClick={() => navigate("ask")} title="Ask AI" aria-label="Ask AI">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          */}
+        </div>
       </div>
+
+      {/* ── Mobile drawer ── */}
+      {drawerOpen && (
+        <div className="mobile-drawer-overlay" onClick={() => setDrawerOpen(false)}>
+          <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
+            <div className="mobile-drawer-header">
+              <div className="mobile-drawer-logo">
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--amber)" }} />
+                Casebase
+              </div>
+              <button className="mobile-drawer-close" onClick={() => setDrawerOpen(false)} aria-label="Close menu">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {drawerGroups.map((g, gi) => (
+              <div key={gi}>
+                {g.section && <div className="mobile-drawer-section">{g.section}</div>}
+                {g.items.map(item => (
+                  <button key={item.id}
+                    className={`mobile-drawer-item${view === item.id ? " active" : ""}`}
+                    onClick={() => { navigate(item.id); setDrawerOpen(false); }}>
+                    {item.icon}{item.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content ── */}
       <div style={{ flex: 1, overflow: "hidden" }}>
-        {view === "landing" && <LandingPage onNavigate={id => setView(id)} />}
-        {view === "balca" && <SearchView key={`balca-${searchKey}`} externalDecisionId={externalDecision?.source === "balca" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "balca" ? externalDecision?.query : null} />}
-        {view === "aao" && <AAOSearchView key={`aao-${searchKey}`} externalDecisionId={externalDecision?.source === "aao" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "aao" ? externalDecision?.query : null} />}
-        {view === "search-all" && <SearchAllView key={`search-all-${searchKey}`} onNavigate={openFromSearchAll} />}
+        {view === "landing" && <LandingPage onNavigate={navigate} />}
+        {view === "balca" && <SearchView key={`balca-${searchKey}`} externalDecisionId={externalDecision?.source === "balca" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "balca" ? externalDecision?.query : null} onViewGraph={openGraph} />}
+        {view === "aao" && <AAOSearchView key={`aao-${searchKey}`} externalDecisionId={externalDecision?.source === "aao" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "aao" ? externalDecision?.query : null} onViewGraph={openGraph} />}
+        {view === "search-all" && <SearchAllView key={`search-all-${searchKey}`} onNavigate={openFromSearchAll} initialQuery={headerQuery} />}
         {view === "regulations" && <RegulationsView />}
         {view === "policy" && <PolicyView />}
-        {view === "citation-graph" && <CitationGraphView onNavigate={(id) => { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); }} />}
+        {view === "citation-graph" && <CitationGraphView key={`graph-${searchKey}`} onNavigate={(id) => { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); }} initialQuery={graphSeed} />}
         {view === "ask" && <AskView onNavigate={(corpus, id) => { if (corpus === "balca") { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); } else if (corpus === "aao") { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); } else if (corpus === "regulation") { setView("regulations"); } else if (corpus === "policy") { setView("policy"); } }} />}
         {view === "perm-comparer" && <PermComparer />}
         {view === "visa-bulletin" && <VisaBulletinView />}
