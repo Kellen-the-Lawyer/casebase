@@ -1589,6 +1589,121 @@ async def citation_graph(
     }
 
 
+@app.get("/api/aao/search/citation-graph")
+async def aao_citation_graph(
+    query: str = Query(alias="q"),
+    limit: int = Query(default=40, ge=5, le=80),
+):
+    """
+    Citation network for an AAO search query using aao_citations (AAO-to-AAO edges).
+    Nodes carry label/form_type/title instead of employer_name/case_number.
+    """
+    if not query.strip():
+        return {"nodes": [], "edges": []}
+
+    q_text = query.strip()
+    is_form_query = bool(re.fullmatch(r"[A-Z]{1,3}-\d{2,5}[A-Z]?", q_text, re.IGNORECASE))
+
+    if is_form_query:
+        primary_rows = await database.fetch_all(text("""
+            SELECT id, filename, title, form_type, decision_date::text AS date, outcome,
+                   COALESCE((SELECT COUNT(*) FROM aao_citations ac
+                             WHERE ac.cited_aao_id = aao_decisions.id), 0)::float AS rank
+            FROM aao_decisions
+            WHERE form_type = :form OR filename ILIKE :prefix OR title ILIKE :prefix
+            ORDER BY rank DESC, decision_date DESC NULLS LAST
+            LIMIT :lim
+        """).bindparams(form=q_text.upper(), prefix=f"{q_text}%", lim=limit))
+    else:
+        primary_rows = await database.fetch_all(text("""
+            SELECT id, filename, title, form_type, decision_date::text AS date, outcome,
+                   (ts_rank(search_vector, websearch_to_tsquery('english', :q)) * 0.70
+                    + log(1 + COALESCE((SELECT COUNT(*) FROM aao_citations ac
+                                        WHERE ac.cited_aao_id = aao_decisions.id), 0)) * 0.30) AS rank
+            FROM aao_decisions
+            WHERE search_vector @@ websearch_to_tsquery('english', :q)
+            ORDER BY rank DESC
+            LIMIT :lim
+        """).bindparams(q=q_text, lim=limit))
+
+    if not primary_rows:
+        return {"nodes": [], "edges": []}
+
+    primary_ids = [r["id"] for r in primary_rows]
+
+    # Edges between primaries via AAO-to-AAO citations
+    edge_rows = await database.fetch_all(text("""
+        SELECT citing_id AS source, cited_aao_id AS target
+        FROM aao_citations
+        WHERE citing_id = ANY(:ids) AND cited_aao_id = ANY(:ids)
+          AND cited_aao_id IS NOT NULL
+    """).bindparams(ids=primary_ids))
+
+    # Secondary nodes: cited by primaries but not in the primary set
+    secondary_cite_rows = await database.fetch_all(text("""
+        SELECT ac.citing_id, ac.cited_aao_id,
+               d.id, d.filename, d.title, d.form_type,
+               d.decision_date::text AS date, d.outcome
+        FROM aao_citations ac
+        JOIN aao_decisions d ON d.id = ac.cited_aao_id
+        WHERE ac.citing_id = ANY(:ids)
+          AND ac.cited_aao_id IS NOT NULL
+          AND ac.cited_aao_id != ALL(:ids)
+    """).bindparams(ids=primary_ids))
+
+    secondary_map = {}
+    secondary_edges = []
+    for row in secondary_cite_rows:
+        sid = row["cited_aao_id"]
+        if sid not in secondary_map:
+            secondary_map[sid] = {
+                "id": sid,
+                "filename": row["filename"],
+                "title": row["title"],
+                "form_type": row["form_type"],
+                "date": row["date"],
+                "outcome": row["outcome"],
+                "cited_by_count": 0,
+            }
+        secondary_map[sid]["cited_by_count"] += 1
+        secondary_edges.append({"source": row["citing_id"], "target": sid})
+
+    secondaries = sorted(secondary_map.values(), key=lambda x: -x["cited_by_count"])
+    min_citations = 2 if len([s for s in secondaries if s["cited_by_count"] >= 2]) >= 3 else 1
+    secondaries = [s for s in secondaries if s["cited_by_count"] >= min_citations][:30]
+    secondary_ids = {s["id"] for s in secondaries}
+    secondary_edges = [e for e in secondary_edges if e["target"] in secondary_ids]
+
+    nodes = []
+    for r in primary_rows:
+        nodes.append({
+            "id": r["id"],
+            "label": r["title"] or r["form_type"] or r["filename"],
+            "filename": r["filename"],
+            "form_type": r["form_type"],
+            "date": r["date"],
+            "outcome": r["outcome"],
+            "tier": "primary",
+            "rank": float(r["rank"] or 0),
+        })
+    for s in secondaries:
+        nodes.append({
+            **s,
+            "label": s["title"] or s["form_type"] or s["filename"],
+            "tier": "secondary",
+            "rank": 0.0,
+        })
+
+    return {
+        "query": q_text,
+        "nodes": nodes,
+        "edges": [{"source": e["source"], "target": e["target"]} for e in edge_rows]
+               + secondary_edges,
+        "primary_count": len(primary_rows),
+        "secondary_count": len(secondaries),
+    }
+
+
 # ── ETA-9141 PWD extraction ───────────────────────────────────────────────────
 
 @app.post("/api/extract-pwd")

@@ -3571,6 +3571,212 @@ function CitationGraphView({ onNavigate, initialQuery }) {
   );
 }
 
+
+// ── AAO Citation Graph View ───────────────────────────────────────────────────
+function AAOCitationGraphView({ onNavigate, initialQuery }) {
+  const [q, setQ] = useState(initialQuery || "");
+  const [graphData, setGraphData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [hovered, setHovered] = useState(null);
+  const svgRef = useRef(null);
+  const simRef = useRef(null);
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const search = async () => {
+    if (!q.trim()) return;
+    setLoading(true); setSelectedNode(null); setHovered(null); setGraphData(null);
+    const res = await fetch(`${API}/aao/search/citation-graph?q=${encodeURIComponent(q.trim())}&limit=40`);
+    const data = await res.json();
+    setGraphData(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { if (initialQuery?.trim()) search(); }, []);
+
+  useEffect(() => {
+    if (!graphData || !svgRef.current || !graphData.nodes.length) return;
+    const d3 = window.d3;
+    if (!d3) return;
+
+    const container = svgRef.current.parentElement;
+    const width = container.clientWidth || 900;
+    const height = container.clientHeight || 600;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+    svg.attr("width", width).attr("height", height);
+
+    const inDegree = {};
+    graphData.nodes.forEach(n => { inDegree[n.id] = 0; });
+    graphData.edges.forEach(e => { if (inDegree[e.target] !== undefined) inDegree[e.target]++; });
+
+    const maxDegree = Math.max(...Object.values(inDegree), 1);
+    const nodeRadius = (n) => {
+      const deg = inDegree[n.id] || 0;
+      const effectiveDeg = n.tier === "secondary" ? Math.max(deg, n.cited_by_count || 0) : deg;
+      return 10 + (effectiveDeg / maxDegree) * 28;
+    };
+
+    const zoom = d3.zoom().scaleExtent([0.25, 4]).on("zoom", e => { g.attr("transform", e.transform); });
+    svg.call(zoom);
+    const g = svg.append("g");
+
+    const defs = svg.append("defs");
+    const markerColors = { default: "#4a4a6a", Dismissed: "#5a5a68", Sustained: "#34d399", Remanded: "#fbbf24", Withdrawn: "#a78bfa" };
+    Object.entries(markerColors).forEach(([key, color]) => {
+      defs.append("marker")
+        .attr("id", `aao-arrow-${key}`)
+        .attr("viewBox", "0 -4 8 8").attr("refX", 10).attr("refY", 0)
+        .attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto")
+        .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", color).attr("opacity", 0.7);
+    });
+
+    const nodes = graphData.nodes.map(n => ({ ...n }));
+    const nodeById = Object.fromEntries(nodes.map(n => [n.id, n]));
+    const edges = graphData.edges.filter(e => nodeById[e.source] && nodeById[e.target]).map(e => ({ ...e }));
+
+    const sim = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(edges).id(n => n.id)
+        .distance(d => {
+          const sr = nodeRadius(nodeById[d.source.id ?? d.source]);
+          const tr = nodeRadius(nodeById[d.target.id ?? d.target]);
+          return sr + tr + 60;
+        }).strength(0.5))
+      .force("charge", d3.forceManyBody().strength(n => -(nodeRadius(n) * 18)))
+      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.08))
+      .force("collision", d3.forceCollide().radius(n => nodeRadius(n) + 20).strength(0.9))
+      .alphaDecay(0.02);
+    simRef.current = sim;
+
+    const outcomeColor = (o) => ({ Dismissed: "#5a5a68", Sustained: "#34d399", Remanded: "#fbbf24", Withdrawn: "#a78bfa" }[o] || "#60a5fa");
+
+    const link = g.append("g").selectAll("line").data(edges).join("line")
+      .attr("stroke", d => outcomeColor(nodeById[d.target?.id ?? d.target]?.outcome))
+      .attr("stroke-opacity", 0.35).attr("stroke-width", 1.5)
+      .attr("marker-end", d => {
+        const outcome = nodeById[d.target?.id ?? d.target]?.outcome;
+        const key = markerColors[outcome] ? outcome : "default";
+        return `url(#aao-arrow-${key})`;
+      });
+
+    const node = g.append("g").selectAll("g").data(nodes).join("g")
+      .style("cursor", "pointer")
+      .call(d3.drag()
+        .on("start", (event, d) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on("drag",  (event, d) => { d.fx = event.x; d.fy = event.y; })
+        .on("end",   (event, d) => { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }))
+      .on("click", (event, d) => { event.stopPropagation(); setSelectedNode(d); })
+      .on("mouseover", (event, d) => setHovered(d))
+      .on("mouseout",  () => setHovered(null));
+
+    node.append("circle")
+      .attr("r", nodeRadius)
+      .attr("fill", d => d.tier === "primary" ? outcomeColor(d.outcome) : outcomeColor(d.outcome) + "66")
+      .attr("stroke", d => d.tier === "primary" ? "#fff" : "none")
+      .attr("stroke-width", d => d.tier === "primary" ? 2 : 0)
+      .attr("opacity", d => d.tier === "primary" ? 1 : 0.65);
+
+    node.append("text")
+      .attr("dy", "0.35em").attr("text-anchor", "middle")
+      .attr("font-size", d => Math.max(9, Math.min(13, nodeRadius(d) * 0.55)))
+      .attr("fill", "#fff").attr("pointer-events", "none")
+      .text(d => {
+        const label = d.form_type || d.label || d.filename || "";
+        return label.length > 14 ? label.slice(0, 13) + "…" : label;
+      });
+
+    sim.on("tick", () => {
+      link
+        .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+      node.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    svg.on("click", () => setSelectedNode(null));
+    return () => sim.stop();
+  }, [graphData]);
+
+  const accent = "#60a5fa";
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--bg)" }} ref={containerRef}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.8">
+            <circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/>
+            <line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/>
+          </svg>
+          <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: "var(--text)" }}>AAO Citation Graph</span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1, position: "relative" }}>
+            <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.4 }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && search()}
+              placeholder="Search AAO decisions or enter form type (I-140, I-485…)"
+              style={{ width: "100%", paddingLeft: 30, fontSize: 13, height: 36, boxSizing: "border-box" }} />
+          </div>
+          <button onClick={search} disabled={loading} style={{ background: accent, color: "#fff", border: "none", borderRadius: 6, padding: "0 16px", fontSize: 13, cursor: "pointer", opacity: loading ? 0.6 : 1 }}>
+            {loading ? "…" : "Graph"}
+          </button>
+        </div>
+        {graphData && (
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--text3)" }}>
+            {graphData.primary_count} primary · {graphData.secondary_count} secondary · {graphData.edges.length} edges
+          </div>
+        )}
+      </div>
+
+      {/* Graph canvas */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {!graphData && !loading && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, opacity: 0.5 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>
+            <span style={{ fontSize: 13, color: "var(--text3)" }}>Search to generate citation graph</span>
+          </div>
+        )}
+        {loading && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 13, color: "var(--text3)" }}>Building graph…</span>
+          </div>
+        )}
+        <svg ref={svgRef} style={{ width: "100%", height: "100%", display: "block" }} />
+
+        {/* Hover tooltip */}
+        {hovered && (
+          <div style={{ position: "absolute", bottom: 16, left: 16, background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", maxWidth: 300, pointerEvents: "none" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 3 }}>{hovered.form_type || hovered.label || hovered.filename}</div>
+            {hovered.label && hovered.label !== hovered.form_type && <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>{hovered.label.slice(0, 80)}</div>}
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>{hovered.date} · {hovered.outcome || "—"} · <span style={{ color: accent }}>{hovered.tier}</span></div>
+          </div>
+        )}
+
+        {/* Selected node panel */}
+        {selectedNode && (
+          <div style={{ position: "absolute", top: 16, right: 16, width: 280, background: "var(--bg2)", border: `1px solid ${accent}44`, borderRadius: 10, padding: "14px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", flex: 1, paddingRight: 8 }}>{selectedNode.form_type || selectedNode.filename}</div>
+              <button onClick={() => setSelectedNode(null)} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+            {selectedNode.label && selectedNode.label !== selectedNode.form_type && (
+              <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 8 }}>{selectedNode.label.slice(0, 120)}</div>
+            )}
+            <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 12 }}>{selectedNode.date} · {selectedNode.outcome || "—"} · {selectedNode.tier}</div>
+            <button onClick={() => onNavigate(selectedNode.id)}
+              style={{ width: "100%", padding: "7px 0", background: accent + "22", color: accent, border: `1px solid ${accent}44`, borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 500 }}>
+              Open decision →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Landing page ──────────────────────────────────────────────────────────────
 function LandingPage({ onNavigate }) {
   const { data: stats } = useFetch(`${API}/stats`);
@@ -3582,6 +3788,7 @@ function LandingPage({ onNavigate }) {
     { id: "regulations", label: "Regulations & Statutes", description: "8 CFR, 20 CFR, 22 CFR, and 29 CFR — full text search across 120 parts, 2,301 pages", accent: "#34d399", accentDim: "#34d39922", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>, available: true },
     { id: "policy", label: "Policy Manuals", description: "USCIS Policy Manual, Foreign Affairs Manual — agency guidance and adjudication policies", accent: "#a78bfa", accentDim: "#a78bfa22", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, available: true },
     { id: "search-all", label: "Search All", description: "Cross-corpus search across decisions, regulations, and policy documents simultaneously", accent: "#fb7185", accentDim: "#fb718522", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>, available: true },
+    { id: "aao-citation-graph", label: "AAO Citation Graph", description: "Map how AAO decisions cite each other — surface the most-referenced precedents and form-type patterns visually", accent: "#60a5fa", accentDim: "#60a5fa22", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>, available: true },
     { id: "citation-graph", label: "Citation Graph", description: "Map how search results cite each other — see the most-cited cases and citation branches emerge visually", accent: "#34d399", accentDim: "#34d39922", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="12" x2="17" y2="6"/><line x1="7" y1="12" x2="17" y2="18"/></svg>, available: true },
     { id: "perm-comparer", label: "PERM Comparer", description: "Compare job description and requirements language, validate PWD wage positioning, and export reports.", accent: "#f59e0b", accentDim: "#f59e0b22", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>, available: true },
     { id: "visa-bulletin", label: "Visa Bulletin", description: "Monthly DOS priority dates — track cutoffs, retrogression, and backlog estimates for EB and family categories", accent: "#34d399", accentDim: "#34d39922", icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, available: true },
@@ -3970,7 +4177,8 @@ export default function App() {
     else if (corpus === "aao") { setExternalDecision({ id, query, source: "aao" }); setView("aao"); }
     else setView(corpus === "regulation" ? "regulations" : "policy");
   };
-  const openGraph = (caseNumber) => { setGraphSeed(caseNumber); setSearchKey(k => k + 1); setView("citation-graph"); };
+  const openGraph    = (seed) => { setGraphSeed(seed); setSearchKey(k => k + 1); setView("citation-graph"); };
+  const openGraphAAO = (seed) => { setGraphSeed(seed); setSearchKey(k => k + 1); setView("aao-citation-graph"); };
 
   const handleHeaderSearch = (e) => {
     e.preventDefault();
@@ -4001,6 +4209,7 @@ export default function App() {
       { type: "item", id: "aao",            label: "AAO Decisions",      icon: icon.globe },
       { type: "sep" },
       { type: "item", id: "citation-graph", label: "Citation Graph",     icon: icon.link  },
+      { type: "item", id: "aao-citation-graph", label: "AAO Citation Graph", icon: icon.link  },
     ]},
     { label: "Statutes & Regs", items: [
       { type: "item", id: "regulations",    label: "Regulations (CFR)",  icon: icon.book  },
@@ -4026,6 +4235,7 @@ export default function App() {
       { id: "balca",          label: "BALCA Decisions",icon: icon.file   },
       { id: "aao",            label: "AAO Decisions",  icon: icon.globe  },
       { id: "citation-graph", label: "Citation Graph", icon: icon.link   },
+      { id: "aao-citation-graph", label: "AAO Citation Graph", icon: icon.link },
     ]},
     { section: "Statutes & Regs", items: [
       { id: "regulations",    label: "Regulations (CFR)", icon: icon.book  },
@@ -4132,11 +4342,12 @@ export default function App() {
       <div style={{ flex: 1, overflow: "hidden" }}>
         {view === "landing" && <LandingPage onNavigate={navigate} />}
         {view === "balca" && <SearchView key={`balca-${searchKey}`} externalDecisionId={externalDecision?.source === "balca" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "balca" ? externalDecision?.query : null} onViewGraph={openGraph} />}
-        {view === "aao" && <AAOSearchView key={`aao-${searchKey}`} externalDecisionId={externalDecision?.source === "aao" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "aao" ? externalDecision?.query : null} onViewGraph={openGraph} />}
+        {view === "aao" && <AAOSearchView key={`aao-${searchKey}`} externalDecisionId={externalDecision?.source === "aao" ? externalDecision?.id : null} externalQuery={externalDecision?.source === "aao" ? externalDecision?.query : null} onViewGraph={openGraphAAO} />}
         {view === "search-all" && <SearchAllView key={`search-all-${searchKey}`} onNavigate={openFromSearchAll} initialQuery={headerQuery} />}
         {view === "regulations" && <RegulationsView />}
         {view === "policy" && <PolicyView />}
         {view === "citation-graph" && <CitationGraphView key={`graph-${searchKey}`} onNavigate={(id) => { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); }} initialQuery={graphSeed} />}
+        {view === "aao-citation-graph" && <AAOCitationGraphView key={`aao-graph-${searchKey}`} onNavigate={(id) => { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); }} initialQuery={graphSeed} />}
         {view === "ask" && <AskView onNavigate={(corpus, id) => { if (corpus === "balca") { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); } else if (corpus === "aao") { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); } else if (corpus === "regulation") { setView("regulations"); } else if (corpus === "policy") { setView("policy"); } }} />}
         {view === "perm-comparer" && <PermComparer />}
         {view === "visa-bulletin" && <VisaBulletinView />}
