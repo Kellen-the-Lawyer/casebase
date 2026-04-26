@@ -102,6 +102,27 @@ async def ensure_operational_schema() -> None:
         "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS citation_quality_status TEXT",
         "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS regulation_quality_status TEXT",
         "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS search_quality_notes TEXT",
+        # aao_citations — inter-corpus citation graph for AAO decisions
+        """
+        CREATE TABLE IF NOT EXISTS aao_citations (
+            id                  SERIAL PRIMARY KEY,
+            citing_id           INTEGER NOT NULL
+                                    REFERENCES aao_decisions(id) ON DELETE CASCADE,
+            cited_aao_id        INTEGER REFERENCES aao_decisions(id) ON DELETE SET NULL,
+            cited_balca_id      INTEGER REFERENCES decisions(id) ON DELETE SET NULL,
+            cited_precedent_id  INTEGER REFERENCES precedent_decisions(id) ON DELETE SET NULL,
+            cited_raw           TEXT NOT NULL,
+            citation_type       TEXT NOT NULL
+                                    CHECK (citation_type IN ('aao','balca','precedent','matter_of')),
+            context_snippet     TEXT,
+            UNIQUE (citing_id, cited_raw)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_aao_citations_citing ON aao_citations(citing_id)",
+        "CREATE INDEX IF NOT EXISTS idx_aao_citations_aao    ON aao_citations(cited_aao_id)",
+        "CREATE INDEX IF NOT EXISTS idx_aao_citations_balca  ON aao_citations(cited_balca_id)",
+        "CREATE INDEX IF NOT EXISTS idx_aao_citations_prec   ON aao_citations(cited_precedent_id)",
+        "CREATE INDEX IF NOT EXISTS idx_aao_citations_type   ON aao_citations(citation_type)",
     ]
     for statement in statements:
         await database.execute(text(statement))
