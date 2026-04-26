@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "balca-perm-scraper"
+name = "casebase"
 version = "0.1.0"
-description = "Starter scraper for BALCA PERM decisions from OALJ/DOL"
+description = "Casebase — Immigration law research platform"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [

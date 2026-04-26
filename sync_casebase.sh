@@ -4,13 +4,13 @@
 # Scrapes new BALCA and AAO decisions and ingests them into the database.
 #
 # Runs via launchd. Logs to: ~/Library/Logs/casebase_sync.log
-# Manual run: bash /Users/Dad/Documents/GitHub/balca-perm-scraper/sync_casebase.sh
+# Manual run: bash /Users/Dad/Documents/GitHub/Casebase/sync_casebase.sh
 # =============================================================================
 
 set -euo pipefail
 
-REPO="/Users/Dad/Documents/GitHub/balca-perm-scraper"
-PERM_RESEARCH="$REPO/perm-research"
+REPO="/Users/Dad/Documents/GitHub/Casebase"
+INGEST_DIR="$REPO/scripts/ingest"
 VENV_PYTHON="$REPO/venv/bin/python"
 SYSTEM_PYTHON="/opt/homebrew/bin/python3.14"
 LOG="$HOME/Library/Logs/casebase_sync.log"
@@ -55,7 +55,7 @@ fi
 
 # ── 2. BALCA ingest: push scraped SQLite records into Postgres ────────────────
 log "--- BALCA ingest into Postgres ---"
-if cd "$PERM_RESEARCH" && "$SYSTEM_PYTHON" ingest_rag.py --corpus balca \
+if cd "$INGEST_DIR" && "$SYSTEM_PYTHON" ingest_rag.py --corpus balca \
     >> "$LOG" 2>&1; then
     log "BALCA ingest: OK"
 else
@@ -92,7 +92,7 @@ fi
 # Only re-ingests the last 90 days to keep the run fast.
 DATE_FROM=$(date -v-90d '+%Y-%m-%d' 2>/dev/null || date -d '90 days ago' '+%Y-%m-%d')
 log "--- AAO ingest (from $DATE_FROM) ---"
-if cd "$PERM_RESEARCH" && "$SYSTEM_PYTHON" ingest_aao.py \
+if cd "$INGEST_DIR" && "$SYSTEM_PYTHON" ingest_aao.py \
     >> "$LOG" 2>&1; then
     log "AAO ingest: OK"
 else

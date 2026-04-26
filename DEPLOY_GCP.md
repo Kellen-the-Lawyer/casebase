@@ -67,7 +67,7 @@ gcloud run deploy "$SERVICE" \
   --allow-unauthenticated \
   --port 8080 \
   --set-secrets DATABASE_URL=casebase-database-url:latest \
-  --set-env-vars PDF_BASE_PATH=/tmp/pdfs
+  --set-env-vars PDF_BASE_PATH=/tmp/pdfs,GCS_RAW_BUCKET=casebase-494315-raw-documents
 ```
 
 If you created `anthropic-api-key`, add:
@@ -78,9 +78,9 @@ If you created `anthropic-api-key`, add:
 
 ## Notes
 
-- Cloud Run containers are stateless. Local PDF serving via `PDF_BASE_PATH`
-  should be replaced with Cloud Storage before relying on stored PDFs in
-  production.
+- Cloud Run containers are stateless. Stored source PDFs are served from the
+  private Cloud Storage bucket configured by `GCS_RAW_BUCKET`; `PDF_BASE_PATH`
+  remains useful for local development.
 - Use Cloud Run jobs for scraper/ingest/retry tasks after the web service is
   deployed.
 - Keep `.env` files local. Runtime configuration should come from Cloud Run

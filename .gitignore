@@ -42,28 +42,40 @@ coverage.xml
 *.secret
 
 # ============================================================
-# Downloaded source documents  (large data files, not code)
+# Raw data — PDFs, spreadsheets, databases  (large, not code)
 # ============================================================
 
-# DOL / OFLC spreadsheets (PERM, LCA, PW disclosure data)
+# All PDFs anywhere in the repo
+*.pdf
+
+# OFLC disclosure data (PERM, LCA, PW spreadsheets)
+data/raw/oflc/
 perm-research/oflc_data/
 
 # USCIS quarterly report spreadsheets
+data/raw/uscis-reports/
 USCIS Reports/
 
-# BALCA opinion PDFs and any other scraped PDFs
+# Scraped PDFs
 data/raw/pdfs/
-*.pdf
 
 # Processed database and CSV exports
 data/processed/
 
-# O*NET database files
+# O*NET database SQL dumps
+onet/db_*/
 perm-research/onet/db_*/
+
+# Database backups
+backups/*.dump
+backups/*.sql
+backups/*.gz
 
 # ============================================================
 # Frontend build artifacts
 # ============================================================
+frontend/node_modules/
+frontend/dist/
 perm-research/frontend/node_modules/
 perm-research/frontend/dist/
 
@@ -72,8 +84,13 @@ perm-research/frontend/dist/
 # ============================================================
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 
 # Saved browser pages used during scraper development
 tests/OALJ*
+
+# Scratch / one-off eval scripts
+eval_mistral.py
+reorganize.sh

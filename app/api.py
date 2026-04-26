@@ -4,6 +4,7 @@ PERM Appeal Decisions — Research API
 import os
 import re
 import json
+import io
 from contextlib import asynccontextmanager
 from datetime import date as _date
 from pathlib import Path
@@ -27,6 +28,21 @@ DATABASE_URL = os.environ.get(
 PDF_BASE_PATH = os.environ.get(
     "PDF_BASE_PATH", "/Users/Dad/Documents/GitHub/balca-perm-scraper/data/raw/pdfs"
 )
+GCS_RAW_BUCKET = os.environ.get("GCS_RAW_BUCKET", "").strip()
+AAO_BASE_PATH = os.environ.get("AAO_BASE_PATH", "/Users/Dad/aao_decisions")
+REGULATIONS_BASE_PATH = os.environ.get(
+    "REGULATIONS_BASE_PATH",
+    "/Users/Dad/Library/CloudStorage/OneDrive-KellenPowell,Esq/Resources/Regulations",
+)
+FAM_BASE_PATH = os.environ.get(
+    "FAM_BASE_PATH",
+    "/Users/Dad/Library/CloudStorage/OneDrive-KellenPowell,Esq/Resources/FAM",
+)
+USCIS_POLICY_MANUAL_GCS_OBJECT = os.environ.get(
+    "USCIS_POLICY_MANUAL_GCS_OBJECT",
+    "policy/uscis-policy-manual/Policy_Manual_USCIS.pdf",
+)
+GCS_CHUNK_SIZE = 1024 * 1024
 
 database = databases.Database(DATABASE_URL)
 
@@ -168,8 +184,113 @@ def _extract_pdf_text(path: str) -> dict[str, Any]:
     }
 
 
+def _extract_pdf_text_from_bytes(pdf_bytes: bytes) -> dict[str, Any]:
+    import pdfplumber
+
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        pages = [page.extract_text() or "" for page in pdf.pages]
+    full_text = "\n\n".join(page for page in pages if page.strip())
+    return {
+        "full_text": full_text,
+        "page_count": len(pages),
+        "char_count": len(full_text),
+        "quality": _text_quality(full_text, len(pages)),
+    }
+
+
 def _balca_pdf_path(filename: str | None) -> str | None:
     return os.path.join(PDF_BASE_PATH, filename) if filename else None
+
+
+def _relative_object_path(path: str | None, base_path: str) -> str | None:
+    if not path:
+        return None
+    value = str(path).replace("\\", "/")
+    base = base_path.rstrip("/").replace("\\", "/")
+    if value.startswith(f"{base}/"):
+        return value[len(base) + 1:]
+    return os.path.basename(value)
+
+
+def _balca_gcs_object(filename: str | None) -> str | None:
+    return f"balca/pdfs/{filename}" if filename else None
+
+
+def _aao_gcs_object(pdf_path: str | None) -> str | None:
+    rel = _relative_object_path(pdf_path, AAO_BASE_PATH)
+    return f"aao/pdfs/{rel}" if rel else None
+
+
+def _regulation_gcs_object(pdf_path: str | None) -> str | None:
+    rel = _relative_object_path(pdf_path, REGULATIONS_BASE_PATH)
+    return f"regulations/pdfs/{rel}" if rel else None
+
+
+def _policy_gcs_object(pdf_path: str | None, source: str | None) -> str | None:
+    if source == "USCIS_PM":
+        return USCIS_POLICY_MANUAL_GCS_OBJECT
+    rel = _relative_object_path(pdf_path, FAM_BASE_PATH)
+    return f"policy/fam/{rel}" if rel else None
+
+
+def _gcs_blob(object_name: str):
+    if not GCS_RAW_BUCKET:
+        return None
+    try:
+        from google.cloud import storage
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="GCS document storage is not available; install google-cloud-storage.",
+        ) from exc
+    return storage.Client().bucket(GCS_RAW_BUCKET).blob(object_name)
+
+
+def _iter_gcs_blob(blob):
+    with blob.open("rb") as handle:
+        while True:
+            chunk = handle.read(GCS_CHUNK_SIZE)
+            if not chunk:
+                break
+            yield chunk
+
+
+def _download_gcs_bytes(object_name: str) -> bytes:
+    blob = _gcs_blob(object_name)
+    if not blob or not blob.exists():
+        raise FileNotFoundError(f"GCS object not found: {object_name}")
+    return blob.download_as_bytes()
+
+
+def _serve_pdf_source(
+    *,
+    local_path: str | None,
+    gcs_object: str | None,
+    filename: str | None = None,
+):
+    if local_path and os.path.exists(local_path):
+        return FileResponse(
+            local_path,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename=\"{filename or os.path.basename(local_path)}\""},
+        )
+    if gcs_object:
+        blob = _gcs_blob(gcs_object)
+        if blob and blob.exists():
+            return StreamingResponse(
+                _iter_gcs_blob(blob),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"inline; filename=\"{filename or os.path.basename(gcs_object)}\""},
+            )
+    raise HTTPException(status_code=404, detail="PDF not found")
+
+
+def _extract_pdf_text_source(local_path: str | None, gcs_object: str | None) -> dict[str, Any]:
+    if local_path and os.path.exists(local_path):
+        return _extract_pdf_text(local_path)
+    if gcs_object:
+        return _extract_pdf_text_from_bytes(_download_gcs_bytes(gcs_object))
+    raise FileNotFoundError(f"PDF not found: {local_path or gcs_object or 'missing path'}")
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
@@ -264,7 +385,10 @@ async def search_decisions(
         snippet = (", ts_headline('english', d.full_text, websearch_to_tsquery('english', :qtext),"
                    " 'MaxWords=30, MinWords=15, StartSel=<mark>, StopSel=</mark>') AS headline")
 
-    total = await database.fetch_val(text(f"SELECT COUNT(*) FROM decisions d WHERE {where}").bindparams(**bind))
+    count_bind = {key: value for key, value in bind.items() if f":{key}" in where}
+    total = await database.fetch_val(
+        text(f"SELECT COUNT(*) FROM decisions d WHERE {where}").bindparams(**count_bind)
+    )
 
     bind["limit"] = page_size
     bind["offset"] = offset
@@ -426,10 +550,11 @@ async def serve_pdf(decision_id: int):
     row = await database.fetch_one(q("SELECT filename FROM decisions WHERE id = :id", id=decision_id))
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    path = os.path.join(PDF_BASE_PATH, row["filename"])
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail=f"PDF not found: {path}")
-    return FileResponse(path, media_type="application/pdf")
+    return _serve_pdf_source(
+        local_path=_balca_pdf_path(row["filename"]),
+        gcs_object=_balca_gcs_object(row["filename"]),
+        filename=row["filename"],
+    )
 
 # ── Regulations ───────────────────────────────────────────────────────────────
 
@@ -713,17 +838,24 @@ async def aao_search(
     offset = (page - 1) * page_size
     conditions = ["1=1"]
     bind = {}
+    is_form_query = bool(
+        q_text and re.fullmatch(r"[A-Z]{1,3}-\d{2,5}[A-Z]?", q_text, flags=re.IGNORECASE)
+    )
 
     if q_text:
-        conditions.append("""(
-            d.search_vector @@ websearch_to_tsquery('english', :qtext)
-            OR d.title ILIKE :q_like
-            OR d.filename ILIKE :q_like
-            OR d.form_type ILIKE :q_like
-            OR d.regulation ILIKE :q_like
-        )""")
-        bind["qtext"] = q_text
-        bind["q_like"] = _like(q_text)
+        if is_form_query:
+            conditions.append("""(
+                d.form_type = :q_form
+                OR d.filename ILIKE :q_prefix
+                OR d.title ILIKE :q_prefix
+                OR d.regulation ILIKE :q_prefix
+            )""")
+            bind["q_form"] = q_text.upper()
+            bind["q_prefix"] = f"{q_text}%"
+        else:
+            bind["qtext"] = q_text
+            bind["q_like"] = _like(q_text)
+            conditions.append("d.search_vector @@ websearch_to_tsquery('english', :qtext)")
     if outcome:
         conditions.append("d.outcome = :outcome")
         bind["outcome"] = outcome
@@ -746,6 +878,13 @@ async def aao_search(
         order = "d.decision_date ASC NULLS LAST"
     elif sort_by == "date_desc":
         order = "d.decision_date DESC NULLS LAST"
+    elif is_form_query:
+        order = (
+            "(CASE WHEN d.form_type = :q_form THEN 2.0 ELSE 0 END "
+            "+ CASE WHEN d.filename ILIKE :q_prefix THEN 1.0 ELSE 0 END "
+            "+ CASE WHEN d.title ILIKE :q_prefix THEN 0.5 ELSE 0 END) "
+            "DESC, d.decision_date DESC NULLS LAST"
+        )
     elif q_text:
         order = (
             "(ts_rank(d.search_vector, websearch_to_tsquery('english', :qtext)) * 0.65 "
@@ -759,12 +898,13 @@ async def aao_search(
         order = "d.decision_date DESC NULLS LAST"
 
     snippet = ""
-    if q_text:
+    if q_text and not is_form_query:
         snippet = (", ts_headline('english', d.full_text, websearch_to_tsquery('english', :qtext),"
                    " 'MaxWords=30, MinWords=15, StartSel=<mark>, StopSel=</mark>') AS headline")
 
+    count_bind = {key: value for key, value in bind.items() if f":{key}" in where}
     total = await database.fetch_val(
-        text(f"SELECT COUNT(*) FROM aao_decisions d WHERE {where}").bindparams(**bind))
+        text(f"SELECT COUNT(*) FROM aao_decisions d WHERE {where}").bindparams(**count_bind))
 
     bind["limit"] = page_size
     bind["offset"] = offset
@@ -872,12 +1012,14 @@ async def serve_precedent_pdf(precedent_id: int):
 @app.get("/api/aao/decisions/{decision_id}/pdf")
 async def serve_aao_pdf(decision_id: int):
     row = await database.fetch_one(
-        q("SELECT pdf_path FROM aao_decisions WHERE id = :id", id=decision_id))
+        q("SELECT filename, pdf_path FROM aao_decisions WHERE id = :id", id=decision_id))
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    if not os.path.exists(row["pdf_path"]):
-        raise HTTPException(status_code=404, detail=f"PDF not found: {row['pdf_path']}")
-    return FileResponse(row["pdf_path"], media_type="application/pdf")
+    return _serve_pdf_source(
+        local_path=row["pdf_path"],
+        gcs_object=_aao_gcs_object(row["pdf_path"]),
+        filename=row["filename"] or os.path.basename(row["pdf_path"]),
+    )
 
 
 @app.get("/api/aao/stats")
@@ -974,10 +1116,14 @@ async def get_regulation_doc(doc_id: int):
 @app.get("/api/regulations-docs/{doc_id}/pdf")
 async def serve_regulation_pdf(doc_id: int):
     row = await database.fetch_one(
-        q("SELECT pdf_path FROM regulations_docs WHERE id = :id", id=doc_id))
-    if not row or not os.path.exists(row["pdf_path"]):
-        raise HTTPException(status_code=404, detail="PDF not found")
-    return FileResponse(row["pdf_path"], media_type="application/pdf")
+        q("SELECT filename, pdf_path FROM regulations_docs WHERE id = :id", id=doc_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    return _serve_pdf_source(
+        local_path=row["pdf_path"],
+        gcs_object=_regulation_gcs_object(row["pdf_path"]),
+        filename=row["filename"] or os.path.basename(row["pdf_path"]),
+    )
 
 
 @app.get("/api/regulations-docs/stats/summary")
@@ -1053,10 +1199,15 @@ async def get_policy_doc(doc_id: int):
 
 @app.get("/api/policy-docs/{doc_id}/pdf")
 async def serve_policy_pdf(doc_id: int):
-    row = await database.fetch_one(q("SELECT pdf_path, source FROM policy_docs WHERE id = :id", id=doc_id))
-    if not row or not os.path.exists(row["pdf_path"]):
-        raise HTTPException(status_code=404, detail="PDF not found")
-    return FileResponse(row["pdf_path"], media_type="application/pdf")
+    row = await database.fetch_one(q("SELECT filename, pdf_path, source FROM policy_docs WHERE id = :id", id=doc_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    filename = "Policy_Manual_USCIS.pdf" if row["source"] == "USCIS_PM" else row["filename"]
+    return _serve_pdf_source(
+        local_path=row["pdf_path"],
+        gcs_object=_policy_gcs_object(row["pdf_path"], row["source"]),
+        filename=filename or os.path.basename(row["pdf_path"]),
+    )
 
 @app.get("/api/policy-docs/stats/summary")
 async def policy_stats():
@@ -1544,13 +1695,9 @@ async def retry_extraction(data: dict):
         decision_id = row["id"]
         pdf_ref = row["pdf_ref"]
         path = _balca_pdf_path(pdf_ref) if corpus == "balca" else pdf_ref
-        if not path or not os.path.exists(path):
-            error = f"PDF not found: {path or pdf_ref or 'missing path'}"
-            await _mark_extraction_failure(corpus, decision_id, error)
-            results.append({"id": decision_id, "status": "not_found", "error": error})
-            continue
+        gcs_object = _balca_gcs_object(pdf_ref) if corpus == "balca" else _aao_gcs_object(pdf_ref)
         try:
-            extracted = _extract_pdf_text(path)
+            extracted = _extract_pdf_text_source(path, gcs_object)
             await _update_extracted_text(corpus, decision_id, extracted)
             results.append({
                 "id": decision_id,
@@ -1559,6 +1706,10 @@ async def retry_extraction(data: dict):
                 "page_count": extracted["page_count"],
                 "quality": extracted["quality"],
             })
+        except FileNotFoundError as exc:
+            error = str(exc)
+            await _mark_extraction_failure(corpus, decision_id, error)
+            results.append({"id": decision_id, "status": "not_found", "error": error})
         except Exception as exc:
             await _mark_extraction_failure(corpus, decision_id, str(exc))
             results.append({"id": decision_id, "status": "failed", "error": str(exc)})
@@ -1832,8 +1983,9 @@ async def claude_proxy(request: Request):
 
 import json as _json
 
-OLLAMA_URL     = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL   = os.environ.get("OLLAMA_EMBED_MODEL", "qwen3-embedding:latest")
+OLLAMA_URL        = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL      = os.environ.get("OLLAMA_EMBED_MODEL", "qwen3-embedding:latest")
+OLLAMA_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "mistral:7b-instruct")
 EMBED_DIM      = 1024  # MRL truncation to stay under pgvector's 2000-dim index limit
 QUERY_INSTRUCT = "Instruct: Given a legal research query, retrieve relevant passages that answer the query\nQuery: "
 
@@ -1964,10 +2116,11 @@ async def ask(request: Request):
 
     context_block = "\n\n---\n\n".join(context_parts)
 
-    # 4. Call Claude to synthesize a cited answer
-    system_prompt = """You are a legal research assistant specializing in U.S. immigration law.
+    # 4. Synthesize a cited answer — prefer Anthropic Claude, fall back to local Ollama
+    system_prompt = """You are a legal AI assistant specializing in PERM labor certification and U.S. immigration law.
 You are given retrieved excerpts from BALCA decisions, AAO decisions, federal regulations (CFR), and USCIS/FAM policy manuals.
-Answer the question accurately and concisely using ONLY the provided sources.
+Follow all formatting instructions exactly. Be concise and precise.
+Answer the question accurately using ONLY the provided sources.
 
 Rules:
 - Cite every factual claim with the source reference number in brackets, e.g. [3] or [1][4].
@@ -1988,43 +2141,74 @@ Question: {question}
 
 Answer (cite sources with [N] notation):"""
 
-    # 5. Stream the response
+    # 5. Stream the response — use Anthropic if key is set, otherwise local Ollama
     async def generate():
         # First, emit the sources metadata
         yield json.dumps({"type": "sources", "sources": sources}) + "\n"
 
-        # Then stream the answer tokens
-        async with httpx.AsyncClient(timeout=120.0) as http_client:
-            async with http_client.stream(
-                "POST",
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-sonnet-4-20250514",
-                    "max_tokens": 1500,
-                    "stream": True,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": user_prompt}],
-                },
-            ) as resp:
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    data_str = line[5:].strip()
-                    if data_str == "[DONE]" or not data_str:
-                        continue
-                    try:
-                        event = json.loads(data_str)
-                        if event.get("type") == "content_block_delta":
-                            delta = event.get("delta", {})
-                            if delta.get("type") == "text_delta":
-                                yield json.dumps({"type": "token", "text": delta["text"]}) + "\n"
-                    except Exception:
-                        continue
+        if ANTHROPIC_API_KEY:
+            # ── Anthropic Claude (preferred) ──────────────────────────────────
+            async with httpx.AsyncClient(timeout=120.0) as http_client:
+                async with http_client.stream(
+                    "POST",
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": ANTHROPIC_API_KEY,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 1500,
+                        "stream": True,
+                        "system": system_prompt,
+                        "messages": [{"role": "user", "content": user_prompt}],
+                    },
+                ) as resp:
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data_str = line[5:].strip()
+                        if data_str == "[DONE]" or not data_str:
+                            continue
+                        try:
+                            event = json.loads(data_str)
+                            if event.get("type") == "content_block_delta":
+                                delta = event.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    yield json.dumps({"type": "token", "text": delta["text"]}) + "\n"
+                        except Exception:
+                            continue
+        else:
+            # ── Local Ollama mistral:7b-instruct (fallback) ───────────────────
+            payload = _json.dumps({
+                "model": OLLAMA_CHAT_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                "stream": True,
+                "options": {"temperature": 0, "num_predict": 1500},
+            }).encode()
+            async with httpx.AsyncClient(timeout=120.0) as http_client:
+                async with http_client.stream(
+                    "POST",
+                    f"{OLLAMA_URL}/api/chat",
+                    content=payload,
+                    headers={"Content-Type": "application/json"},
+                ) as resp:
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            event = _json.loads(line)
+                            token = event.get("message", {}).get("content", "")
+                            if token:
+                                yield json.dumps({"type": "token", "text": token}) + "\n"
+                            if event.get("done"):
+                                break
+                        except Exception:
+                            continue
 
         yield json.dumps({"type": "done"}) + "\n"
 

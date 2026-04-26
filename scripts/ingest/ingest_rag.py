@@ -25,11 +25,11 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 DB_URL         = os.environ.get("DATABASE_URL", "postgresql://perm:perm_local_pw@localhost:5432/perm_decisions")
 OLLAMA_URL     = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL   = os.environ.get("OLLAMA_EMBED_MODEL", "qwen3-embedding:8b")
-EMBED_DIM      = 1024  # MRL truncation — Qwen3 8B native is 4096 but 1024 stays under pgvector's 2000-dim index limit at ~95% quality
+OLLAMA_MODEL   = os.environ.get("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b")
+EMBED_DIM      = 1024  # MRL truncation — Qwen3 4B native is 2560 but 1024 stays under pgvector's 2000-dim index limit at ~95% quality
 CHUNK_TOKENS   = 800
 OVERLAP_TOKENS = 80
-BATCH_SIZE     = 1     # one at a time — avoids Ollama 500s under memory pressure
+BATCH_SIZE     = 5     # 4B model has more memory headroom — batch of 5 is safe and ~5x faster
 # Instruction prefix — improves retrieval quality 1-5% per Qwen3 docs
 QUERY_INSTRUCT = "Instruct: Given a legal research query, retrieve relevant passages that answer the query\nQuery: "
 DOC_INSTRUCT   = ""    # no prefix on document side per Qwen3 recommendation
@@ -194,7 +194,7 @@ def _embed_and_save(conn, pending: list) -> int:
             print(f"    ... {done}/{len(texts)} embedded")
         # Small pause to avoid overwhelming Ollama on long runs
         if i + BATCH_SIZE < len(texts):
-            time.sleep(0.1)
+            time.sleep(0.05)
 
     rows_to_save = []
     for chunk_meta, vec in zip(pending, embeddings):
@@ -207,6 +207,15 @@ def _embed_and_save(conn, pending: list) -> int:
 
 def _process_docs(conn, rows, corpus, id_key, text_key, chunk_fn,
                   label_key=None, label_fn=None, date_key=None, outcome_key=None):
+    # Skip already-embedded docs so we can resume after a crash
+    with conn.cursor() as cur:
+        cur.execute("SELECT DISTINCT source_id FROM rag_chunks WHERE corpus = %s", (corpus,))
+        already_done = {r[0] for r in cur.fetchall()}
+    if already_done:
+        before = len(rows)
+        rows = [r for r in rows if r[id_key] not in already_done]
+        print(f"  Skipping {before - len(rows)} already-embedded docs, {len(rows)} remaining")
+
     all_pending = []
     total_chunks = 0
     for doc in rows:
@@ -275,6 +284,16 @@ def ingest_aao(conn, limit=None, date_from=None, date_to=None):
         """)
         rows = cur.fetchall()
     print(f"  {len(rows)} decisions to chunk")
+
+    # Skip docs already fully embedded so we can resume after a crash
+    with conn.cursor() as cur:
+        cur.execute("SELECT DISTINCT source_id FROM rag_chunks WHERE corpus = 'aao'")
+        already_done = {r[0] for r in cur.fetchall()}
+    if already_done:
+        before = len(rows)
+        rows = [r for r in rows if r["id"] not in already_done]
+        print(f"  Skipping {before - len(rows)} already-embedded docs, {len(rows)} remaining")
+
     all_pending, total = [], 0
     for doc in rows:
         chunks = chunk_by_paragraphs(doc["full_text"])
