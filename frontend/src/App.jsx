@@ -407,7 +407,7 @@ function SearchView({ externalDecisionId, externalQuery, onViewGraph }) {
     }
   }, [q, outcome, regulation, dateFrom, dateTo, employer, caseNumber, panel, hasCitations, hasRegulations, includeDocketing, sortBy]);
 
-  const splitView = (selectedId || precId) && (searched || !!externalDecisionId);
+  const splitView = selectedId && (searched || !!externalDecisionId);
 
   return (
     <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
@@ -2740,7 +2740,7 @@ function AAOSearchView({ externalDecisionId, externalQuery, onViewGraph }) {
     setActiveQuery(q);
   }, [q, outcome, formType, regulation, dateFrom, dateTo, sortBy]);
 
-  const splitView = selectedId && (searched || !!externalDecisionId);
+  const splitView = (selectedId || precId) && (searched || !!externalDecisionId);
 
   return (
     <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
