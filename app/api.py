@@ -1673,12 +1673,15 @@ async def aao_citation_graph(
                    (SELECT COUNT(*) FROM aao_citations ac2
                     WHERE ac2.citing_id = d.id
                       AND ac2.cited_aao_id IN (SELECT id FROM aao_decisions WHERE is_precedent = TRUE)
-                   ) AS prec_cite_count
+                   ) AS prec_cite_count,
+                   (SELECT COUNT(*) FROM aao_citations ac3
+                    WHERE ac3.cited_aao_id = d.id
+                   ) AS cited_by_count
             FROM aao_citations ac
             JOIN aao_decisions d ON d.id = ac.citing_id
             WHERE ac.cited_aao_id = :pid
               AND d.is_precedent = FALSE
-            ORDER BY prec_cite_count DESC, d.decision_date DESC NULLS LAST
+            ORDER BY prec_cite_count DESC, cited_by_count DESC, d.decision_date DESC NULLS LAST
             LIMIT :lim
         """).bindparams(pid=prec_id, lim=limit))
 
@@ -1743,7 +1746,7 @@ async def aao_citation_graph(
                 "filename": r["filename"], "form_type": r["form_type"],
                 "date": r["date"], "outcome": r["outcome"],
                 "is_precedent": False, "party_name": None, "citation": None,
-                "cited_by_count": int(r["prec_cite_count"]), "rank": 0.0,
+                "cited_by_count": int(r["cited_by_count"]), "rank": 0.0,
             })
         for s in siblings:
             nodes.append(s)

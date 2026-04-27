@@ -3613,6 +3613,7 @@ function AAOCitationGraphView({ onNavigate, onOpenPrecedent, initialQuery }) {
   const [loading, setLoading] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [hovered, setHovered] = useState(null);
+  const [d3Ready, setD3Ready] = useState(!!window.d3);
   const svgRef = useRef(null);
   const simRef = useRef(null);
   const containerRef = useRef(null);
@@ -3620,21 +3621,42 @@ function AAOCitationGraphView({ onNavigate, onOpenPrecedent, initialQuery }) {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // Load D3 from CDN if not already present, then signal ready
+  useEffect(() => {
+    if (window.d3) { setD3Ready(true); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js";
+    script.onload = () => setD3Ready(true);
+    document.head.appendChild(script);
+  }, []);
+
   const search = async () => {
-    if (!q.trim()) return;
+    console.log('[AAOGraph] search() called, q=', JSON.stringify(q));
+    if (!q.trim()) { console.log('[AAOGraph] empty q, returning'); return; }
     setLoading(true); setSelectedNode(null); setHovered(null); setGraphData(null);
-    const res = await fetch(`${API}/aao/search/citation-graph?q=${encodeURIComponent(q.trim())}&limit=40`);
-    const data = await res.json();
-    setGraphData(data);
+    const url = `${API}/aao/search/citation-graph?q=${encodeURIComponent(q.trim())}&limit=40`;
+    console.log('[AAOGraph] fetching:', url);
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      console.log('[AAOGraph] response: nodes=', data.nodes?.length, 'edges=', data.edges?.length);
+      setGraphData(data);
+    } catch(e) {
+      console.error('[AAOGraph] fetch error:', e);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { if (initialQuery?.trim()) search(); }, []);
+  useEffect(() => {
+    console.log('[AAOGraph] mount effect, initialQuery=', JSON.stringify(initialQuery), 'q=', JSON.stringify(q));
+    if (initialQuery?.trim()) search();
+  }, []);
 
   useEffect(() => {
-    if (!graphData || !svgRef.current || !graphData.nodes.length) return;
+    if (!d3Ready || !graphData || !svgRef.current || !graphData.nodes.length) return;
     const d3 = window.d3;
     if (!d3) return;
+    console.log('[AAOGraph] D3 render start: nodes=', graphData.nodes.length);
 
     const container = svgRef.current.parentElement;
     const width = container.clientWidth || 900;
@@ -3740,6 +3762,7 @@ function AAOCitationGraphView({ onNavigate, onOpenPrecedent, initialQuery }) {
         return label.length > 14 ? label.slice(0, 13) + "…" : label;
       });
 
+    console.log('[AAOGraph] nodes in sim:', nodes.length, 'edges in sim:', edges.length);
     sim.on("tick", () => {
       link
         .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
@@ -3748,8 +3771,9 @@ function AAOCitationGraphView({ onNavigate, onOpenPrecedent, initialQuery }) {
     });
 
     svg.on("click", () => setSelectedNode(null));
+    console.log('[AAOGraph] D3 render complete');
     return () => sim.stop();
-  }, [graphData]);
+  }, [graphData, d3Ready]);
 
   const accent = "#60a5fa";
 
@@ -4255,7 +4279,7 @@ export default function App() {
     else setView(corpus === "regulation" ? "regulations" : "policy");
   };
   const openGraph    = (seed) => { setGraphSeed(seed); setSearchKey(k => k + 1); setView("citation-graph"); };
-  const openGraphAAO = (seed) => { setGraphSeed(seed); setAaoGraphKey(k => k + 1); setView("aao-citation-graph"); };
+  const openGraphAAO = (seed) => { console.log('[openGraphAAO] seed=', seed); setGraphSeed(seed); setAaoGraphKey(k => k + 1); setView("aao-citation-graph"); };
 
   const handleHeaderSearch = (e) => {
     e.preventDefault();
