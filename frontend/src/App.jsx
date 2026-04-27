@@ -2740,7 +2740,7 @@ function AAOSearchView({ externalDecisionId, externalQuery, onViewGraph }) {
     setActiveQuery(q);
   }, [q, outcome, formType, regulation, dateFrom, dateTo, sortBy]);
 
-  const splitView = (selectedId || precId) && (searched || !!externalDecisionId);
+  const splitView = !!selectedId && (searched || !!externalDecisionId);
 
   return (
     <div className="search-view-root" style={{ height: "100%", display: "flex", overflow: "hidden" }}>
@@ -2804,7 +2804,7 @@ function AAOSearchView({ externalDecisionId, externalQuery, onViewGraph }) {
                 I&amp;N Dec. Precedents
               </div>
               {matchedPrecedents.map(p => (
-                <div key={p.id} onClick={() => setPrecId(p.id)}
+                <div key={p.id} onClick={() => { setSelectedId(p.id); setPrecId(null); }}
                   style={{ padding: splitView ? "8px 12px" : "10px 24px", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 10, borderLeft: "2px solid #f59e0b44", transition: "background 0.1s" }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--bg3)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
@@ -2839,30 +2839,10 @@ function AAOSearchView({ externalDecisionId, externalQuery, onViewGraph }) {
         </div>
       </div>
       {splitView && (
-        <div className="search-detail-panel" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "row" }}>
-          {/* Main detail: AAO decision when selectedId is set */}
-          {selectedId && (
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease", borderRight: precId ? "1px solid var(--border)" : "none" }}>
-              <AAODecisionDetail decisionId={selectedId} query={activeQuery} precedentMap={precedentMap} onNavigate={(id, type) => {
-                if (type === 'precedent' || type === 'adopted') setPrecId(id);
-                else setSelectedId(id);
-              }} onViewGraph={onViewGraph} />
-            </div>
-          )}
-          {/* Precedent panel: shown inline when no AAO decision is open (full width),
-              or as a side panel to the right of an open AAO decision */}
-          {precId && !selectedId && (
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
-              <PrecedentDetail id={precId} onClose={() => setPrecId(null)}
-                onViewGraph={onViewGraph} showGraphButton />
-            </div>
-          )}
-          {precId && selectedId && (
-            <div style={{ width: "min(520px, 45%)", overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease", flexShrink: 0 }}>
-              <PrecedentDetail id={precId} onClose={() => setPrecId(null)}
-                onViewGraph={onViewGraph} showGraphButton />
-            </div>
-          )}
+        <div className="search-detail-panel" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeUp 0.18s ease" }}>
+          <AAODecisionDetail decisionId={selectedId} query={activeQuery} precedentMap={precedentMap}
+            onNavigate={(id) => setSelectedId(id)}
+            onViewGraph={onViewGraph} />
         </div>
       )}
     </div>
@@ -4443,7 +4423,7 @@ export default function App() {
         {view === "regulations" && <RegulationsView />}
         {view === "policy" && <PolicyView />}
         {view === "citation-graph" && <CitationGraphView key={`graph-${searchKey}`} onNavigate={(id) => { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); }} initialQuery={graphSeed} />}
-        {view === "aao-citation-graph" && <AAOCitationGraphView key={`aao-graph-${searchKey}`} onNavigate={(id) => { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); }} onOpenPrecedent={(id) => { setView("aao"); setTimeout(() => window.dispatchEvent(new CustomEvent("openPrecedent", { detail: id })), 100); }} initialQuery={graphSeed} />}
+        {view === "aao-citation-graph" && <AAOCitationGraphView key={`aao-graph-${searchKey}`} onNavigate={(id) => { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); }} onOpenPrecedent={(id) => { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); }} initialQuery={graphSeed} />}
         {view === "ask" && <AskView onNavigate={(corpus, id) => { if (corpus === "balca") { setExternalDecision({ id, query: "", source: "balca" }); setView("balca"); } else if (corpus === "aao") { setExternalDecision({ id, query: "", source: "aao" }); setView("aao"); } else if (corpus === "regulation") { setView("regulations"); } else if (corpus === "policy") { setView("policy"); } }} />}
         {view === "perm-comparer" && <PermComparer />}
         {view === "visa-bulletin" && <VisaBulletinView />}

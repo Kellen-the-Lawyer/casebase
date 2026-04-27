@@ -123,6 +123,15 @@ async def ensure_operational_schema() -> None:
         "CREATE INDEX IF NOT EXISTS idx_aao_citations_balca  ON aao_citations(cited_balca_id)",
         "CREATE INDEX IF NOT EXISTS idx_aao_citations_prec   ON aao_citations(cited_precedent_id)",
         "CREATE INDEX IF NOT EXISTS idx_aao_citations_type   ON aao_citations(citation_type)",
+        # Precedent fields on aao_decisions (added when precedent_decisions were migrated in)
+        "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS is_precedent BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS citation TEXT",
+        "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS party_name TEXT",
+        "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS volume INTEGER",
+        "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS decision_type TEXT",
+        "ALTER TABLE IF EXISTS aao_decisions ADD COLUMN IF NOT EXISTS adopted_num TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_aao_decisions_is_precedent ON aao_decisions(is_precedent) WHERE is_precedent = TRUE",
+        "CREATE INDEX IF NOT EXISTS idx_aao_decisions_citation ON aao_decisions(citation) WHERE citation IS NOT NULL",
     ]
     for statement in statements:
         await database.execute(text(statement))
@@ -1039,36 +1048,33 @@ async def get_aao_citations(decision_id: int):
 async def get_precedent_map():
     """
     Returns the full lookup map used for inline citation linking.
+    Now sourced from aao_decisions WHERE is_precedent = TRUE.
     Two keys per entry:
-      - "25 I&N Dec. 369"  -> {id, citation, party_name, type}   (I&N Dec. citations)
-      - "Adopted 2017-02"  -> {id, citation, party_name, type}   (Adopted decisions)
-    Cached at startup; small enough to send to every decision detail load.
+      - "25 I&N Dec. 369"  -> {id, citation, party_name, type}
+      - "Adopted 2017-02"  -> {id, citation, party_name, type}
     """
     rows = await database.fetch_all("""
         SELECT id, citation, party_name, decision_type, adopted_num
-        FROM precedent_decisions
-        WHERE full_text != '' OR decision_type = 'adopted'
+        FROM aao_decisions
+        WHERE is_precedent = TRUE
     """)
     result = {}
     for row in rows:
+        if not row["citation"]:
+            continue
         entry = {
             "id":         row["id"],
             "citation":   row["citation"],
             "party_name": row["party_name"],
             "type":       row["decision_type"],
         }
-        # Key by full I&N Dec. citation string, e.g. "25 I&N Dec. 369"
         m = re.search(r'(\d+ I&N Dec\. \d+)', row["citation"])
         if m:
             result[m.group(1)] = entry
-            # Also key by "l&N Dec." variant (OCR artifact in some PDFs)
             result[m.group(1).replace("I&N", "l&N")] = entry
-
-        # Key adopted decisions by their adopted number
         if row["decision_type"] == "adopted" and row["adopted_num"]:
             result[f"Adopted Decision {row['adopted_num']}"] = entry
             result[f"Adopted Decision {row['adopted_num']}".replace(" ", "\xa0")] = entry
-
     return result
 
 
@@ -1078,26 +1084,27 @@ async def search_precedents(
     limit: int = Query(default=5, ge=1, le=20),
 ):
     """
-    Search I&N Dec. precedent decisions by party name, citation, or full text.
-    Returns up to `limit` results ranked by relevance + cited_by_count.
-    Used by AAO search to surface pinned precedent hits above regular results.
+    Search I&N Dec. precedent decisions (now in aao_decisions with is_precedent=TRUE).
+    Ranked by text relevance + citation authority (how many AAO decisions cite them).
     """
     q_text = _clean_query(query)
     if not q_text:
         return []
 
     rows = await database.fetch_all(text("""
-        SELECT id, citation, party_name, year, decision_type, adopted_num,
+        SELECT id, citation, party_name, volume, decision_type, adopted_num,
+               EXTRACT(YEAR FROM decision_date)::int AS year,
                length(full_text) AS has_text,
                COALESCE((SELECT COUNT(*) FROM aao_citations ac
-                          WHERE ac.cited_precedent_id = precedent_decisions.id), 0) AS cited_by_count,
+                          WHERE ac.cited_aao_id = aao_decisions.id), 0) AS cited_by_count,
                (ts_rank(search_vector, websearch_to_tsquery('english', :q)) * 0.60
                 + log(1 + COALESCE((SELECT COUNT(*) FROM aao_citations ac
-                                     WHERE ac.cited_precedent_id = precedent_decisions.id), 0)) * 0.40) AS rank
-        FROM precedent_decisions
-        WHERE search_vector @@ websearch_to_tsquery('english', :q)
-           OR party_name ILIKE :like
-           OR citation ILIKE :like
+                                     WHERE ac.cited_aao_id = aao_decisions.id), 0)) * 0.40) AS rank
+        FROM aao_decisions
+        WHERE is_precedent = TRUE
+          AND (search_vector @@ websearch_to_tsquery('english', :q)
+               OR party_name ILIKE :like
+               OR citation ILIKE :like)
         ORDER BY rank DESC
         LIMIT :lim
     """).bindparams(q=q_text, like=f"%{q_text}%", lim=limit))
@@ -1107,10 +1114,12 @@ async def search_precedents(
 
 @app.get("/api/precedents/{precedent_id}")
 async def get_precedent(precedent_id: int):
+    """Fetch a single precedent decision — now from aao_decisions."""
     row = await database.fetch_one(q("""
-        SELECT id, citation, party_name, year, body, decision_type,
-               pm_number, adopted_num, pdf_path, pdf_url, full_text
-        FROM precedent_decisions WHERE id = :id
+        SELECT id, citation, party_name, decision_type, adopted_num,
+               EXTRACT(YEAR FROM decision_date)::int AS year,
+               pdf_path, full_text, title
+        FROM aao_decisions WHERE id = :id AND is_precedent = TRUE
     """, id=precedent_id))
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1120,15 +1129,15 @@ async def get_precedent(precedent_id: int):
 @app.get("/api/precedents/{precedent_id}/pdf")
 async def serve_precedent_pdf(precedent_id: int):
     row = await database.fetch_one(q(
-        "SELECT pdf_path FROM precedent_decisions WHERE id = :id", id=precedent_id))
+        "SELECT pdf_path FROM aao_decisions WHERE id = :id AND is_precedent = TRUE",
+        id=precedent_id))
     if not row or not row["pdf_path"]:
         raise HTTPException(status_code=404, detail="PDF not available")
     path = row["pdf_path"]
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="PDF file not found on disk")
-    from fastapi.responses import FileResponse
     return FileResponse(path, media_type="application/pdf",
-                        headers={"Content-Disposition": f"inline; filename=\"{os.path.basename(path)}\""})
+                        headers={"Content-Disposition": f'inline; filename="{os.path.basename(path)}"'})
 
 
 @app.get("/api/aao/decisions/{decision_id}/pdf")
@@ -1629,18 +1638,9 @@ async def aao_citation_graph(
 ):
     """
     Citation network for an AAO search query.
-
-    Two kinds of nodes:
-      node_type="aao"       — primary AAO decisions (matched by search)
-      node_type="precedent" — I&N Dec. precedent decisions cited by the primaries
-                              (Chawathe, Dhanasar, Texperts, etc.)
-
-    Edges:
-      aao → aao via aao_citations.cited_aao_id
-      aao → precedent via aao_citations.cited_precedent_id
-
-    Precedent nodes are sized by how many primaries cite them, making landmark
-    cases like Chawathe or Dhanasar immediately visible as large hubs.
+    Precedent decisions (Chawathe, Dhanasar, etc.) are now regular aao_decisions
+    rows with is_precedent=TRUE, so all edges use cited_aao_id uniformly.
+    Precedent nodes are tagged node_type='precedent' for gold styling in the UI.
     """
     if not query.strip():
         return {"nodes": [], "edges": []}
@@ -1648,25 +1648,29 @@ async def aao_citation_graph(
     q_text = query.strip()
     is_form_query = bool(re.fullmatch(r"[A-Z]{1,3}-\d{2,5}[A-Z]?", q_text, re.IGNORECASE))
 
-    # ── Step 1: primary AAO nodes ──────────────────────────────────────────
+    # ── Step 1: primary nodes (exclude is_precedent rows from primary set) ─
     if is_form_query:
         primary_rows = await database.fetch_all(text("""
             SELECT id, filename, title, form_type, decision_date::text AS date, outcome,
+                   is_precedent, party_name, citation,
                    COALESCE((SELECT COUNT(*) FROM aao_citations ac
                              WHERE ac.cited_aao_id = aao_decisions.id), 0)::float AS rank
             FROM aao_decisions
-            WHERE form_type = :form OR filename ILIKE :prefix OR title ILIKE :prefix
+            WHERE is_precedent = FALSE
+              AND (form_type = :form OR filename ILIKE :prefix OR title ILIKE :prefix)
             ORDER BY rank DESC, decision_date DESC NULLS LAST
             LIMIT :lim
         """).bindparams(form=q_text.upper(), prefix=f"{q_text}%", lim=limit))
     else:
         primary_rows = await database.fetch_all(text("""
             SELECT id, filename, title, form_type, decision_date::text AS date, outcome,
+                   is_precedent, party_name, citation,
                    (ts_rank(search_vector, websearch_to_tsquery('english', :q)) * 0.70
                     + log(1 + COALESCE((SELECT COUNT(*) FROM aao_citations ac
                                         WHERE ac.cited_aao_id = aao_decisions.id), 0)) * 0.30) AS rank
             FROM aao_decisions
-            WHERE search_vector @@ websearch_to_tsquery('english', :q)
+            WHERE is_precedent = FALSE
+              AND search_vector @@ websearch_to_tsquery('english', :q)
             ORDER BY rank DESC
             LIMIT :lim
         """).bindparams(q=q_text, lim=limit))
@@ -1675,8 +1679,9 @@ async def aao_citation_graph(
         return {"nodes": [], "edges": []}
 
     primary_ids = [r["id"] for r in primary_rows]
+    primary_rows = [dict(r) for r in primary_rows]  # convert Records to dicts
 
-    # ── Step 2: AAO-to-AAO edges between primaries ─────────────────────────
+    # ── Step 2: edges between primaries ────────────────────────────────────
     aao_edge_rows = await database.fetch_all(text("""
         SELECT citing_id AS source, cited_aao_id AS target
         FROM aao_citations
@@ -1684,51 +1689,13 @@ async def aao_citation_graph(
           AND cited_aao_id IS NOT NULL
     """).bindparams(ids=primary_ids))
 
-    # ── Step 3: precedent nodes cited by primaries ─────────────────────────
-    prec_cite_rows = await database.fetch_all(text("""
-        SELECT ac.citing_id, ac.cited_precedent_id,
-               pd.id, pd.citation, pd.party_name, pd.year, pd.decision_type
-        FROM aao_citations ac
-        JOIN precedent_decisions pd ON pd.id = ac.cited_precedent_id
-        WHERE ac.citing_id = ANY(:ids)
-          AND ac.cited_precedent_id IS NOT NULL
-    """).bindparams(ids=primary_ids))
-
-    # Count how many primaries cite each precedent
-    prec_map = {}
-    prec_edges = []
-    for row in prec_cite_rows:
-        pid = row["cited_precedent_id"]
-        # Use a namespaced id so precedent and AAO ids don't collide
-        node_id = f"prec-{pid}"
-        if node_id not in prec_map:
-            prec_map[node_id] = {
-                "id": node_id,
-                "prec_id": pid,
-                "label": row["party_name"] or row["citation"],
-                "citation": row["citation"],
-                "party_name": row["party_name"],
-                "year": row["year"],
-                "decision_type": row["decision_type"],
-                "cited_by_count": 0,
-                "node_type": "precedent",
-            }
-        prec_map[node_id]["cited_by_count"] += 1
-        prec_edges.append({"source": row["citing_id"], "target": node_id})
-
-    # Keep only the top-cited precedents (cap at 20 to keep graph readable)
-    prec_nodes = sorted(prec_map.values(), key=lambda x: -x["cited_by_count"])
-    # Minimum: cited by at least 2 primaries unless very few qualify
-    min_cites = 2 if len([p for p in prec_nodes if p["cited_by_count"] >= 2]) >= 3 else 1
-    prec_nodes = [p for p in prec_nodes if p["cited_by_count"] >= min_cites][:20]
-    kept_prec_ids = {p["id"] for p in prec_nodes}
-    prec_edges = [e for e in prec_edges if e["target"] in kept_prec_ids]
-
-    # ── Step 4: AAO secondary nodes (cited by primaries, not in primaries) ──
-    aao_secondary_rows = await database.fetch_all(text("""
+    # ── Step 3: secondary nodes — cited by primaries, not in primaries ─────
+    # This now naturally includes precedent decisions since they're in aao_decisions
+    secondary_rows = await database.fetch_all(text("""
         SELECT ac.citing_id, ac.cited_aao_id,
                d.id, d.filename, d.title, d.form_type,
-               d.decision_date::text AS date, d.outcome
+               d.decision_date::text AS date, d.outcome,
+               d.is_precedent, d.party_name, d.citation
         FROM aao_citations ac
         JOIN aao_decisions d ON d.id = ac.cited_aao_id
         WHERE ac.citing_id = ANY(:ids)
@@ -1736,57 +1703,61 @@ async def aao_citation_graph(
           AND ac.cited_aao_id != ALL(:ids)
     """).bindparams(ids=primary_ids))
 
-    aao_sec_map = {}
-    aao_sec_edges = []
-    for row in aao_secondary_rows:
+    sec_map = {}
+    sec_edges = []
+    for row in secondary_rows:
         sid = row["cited_aao_id"]
-        if sid not in aao_sec_map:
-            aao_sec_map[sid] = {
-                "id": sid, "filename": row["filename"], "title": row["title"],
+        if sid not in sec_map:
+            sec_map[sid] = {
+                "id": sid,
+                "filename": row["filename"], "title": row["title"],
                 "form_type": row["form_type"], "date": row["date"],
-                "outcome": row["outcome"], "cited_by_count": 0, "node_type": "aao",
+                "outcome": row["outcome"], "cited_by_count": 0,
+                "is_precedent": row["is_precedent"],
+                "party_name": row["party_name"],
+                "citation": row["citation"],
+                "node_type": "precedent" if row["is_precedent"] else "aao",
             }
-        aao_sec_map[sid]["cited_by_count"] += 1
-        aao_sec_edges.append({"source": row["citing_id"], "target": sid})
+        sec_map[sid]["cited_by_count"] += 1
+        sec_edges.append({"source": row["citing_id"], "target": sid})
 
-    aao_secondaries = sorted(aao_sec_map.values(), key=lambda x: -x["cited_by_count"])
+    secondaries = sorted(sec_map.values(), key=lambda x: -x["cited_by_count"])
+    # Precedents are always kept (they're the landmark cases); apply min_cites only to non-precedents
+    prec_secondaries = [s for s in secondaries if s["is_precedent"]]
+    aao_secondaries  = [s for s in secondaries if not s["is_precedent"]]
     min2 = 2 if len([s for s in aao_secondaries if s["cited_by_count"] >= 2]) >= 3 else 1
-    aao_secondaries = [s for s in aao_secondaries if s["cited_by_count"] >= min2][:15]
-    aao_sec_ids = {s["id"] for s in aao_secondaries}
-    aao_sec_edges = [e for e in aao_sec_edges if e["target"] in aao_sec_ids]
+    aao_secondaries  = [s for s in aao_secondaries if s["cited_by_count"] >= min2][:15]
+    prec_secondaries = prec_secondaries[:20]
+    kept_sec_ids = {s["id"] for s in aao_secondaries} | {s["id"] for s in prec_secondaries}
+    sec_edges = [e for e in sec_edges if e["target"] in kept_sec_ids]
 
-    # ── Assemble final response ────────────────────────────────────────────
+    # ── Assemble ────────────────────────────────────────────────────────────
+    def node_label(r):
+        if r.get("is_precedent") and r.get("party_name"):
+            return r["party_name"]
+        return r.get("title") or r.get("form_type") or r.get("filename") or ""
+
     nodes = []
     for r in primary_rows:
         nodes.append({
-            "id": r["id"], "node_type": "aao", "tier": "primary",
-            "label": r["title"] or r["form_type"] or r["filename"],
-            "filename": r["filename"], "form_type": r["form_type"],
-            "date": r["date"], "outcome": r["outcome"],
-            "rank": float(r["rank"] or 0),
+            "id": r["id"], "node_type": "precedent" if r["is_precedent"] else "aao",
+            "tier": "primary",
+            "label": node_label(r), "filename": r["filename"],
+            "form_type": r["form_type"], "date": r["date"], "outcome": r["outcome"],
+            "is_precedent": r["is_precedent"], "party_name": r["party_name"],
+            "citation": r["citation"], "rank": float(r["rank"] or 0),
         })
-    for s in aao_secondaries:
-        nodes.append({
-            **s,
-            "label": s["title"] or s["form_type"] or s["filename"],
-            "tier": "secondary", "rank": 0.0,
-        })
-    for p in prec_nodes:
-        nodes.append({**p, "tier": "secondary", "rank": 0.0})
-
-    edges = (
-        [{"source": e["source"], "target": e["target"]} for e in aao_edge_rows]
-        + aao_sec_edges
-        + prec_edges
-    )
+    for s in aao_secondaries + prec_secondaries:
+        nodes.append({**s, "label": node_label(s), "tier": "secondary", "rank": 0.0})
 
     return {
         "query": q_text,
         "nodes": nodes,
-        "edges": edges,
+        "edges": [{"source": e["source"], "target": e["target"]} for e in aao_edge_rows]
+               + sec_edges,
         "primary_count": len(primary_rows),
-        "secondary_count": len(aao_secondaries) + len(prec_nodes),
-        "precedent_count": len(prec_nodes),
+        "secondary_count": len(aao_secondaries) + len(prec_secondaries),
+        "precedent_count": len(prec_secondaries),
     }
 
 
