@@ -141,7 +141,7 @@ def embed_batch(texts: list) -> list:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=600) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 data = json.loads(resp.read())
             return [vec[:EMBED_DIM] for vec in data["embeddings"]]
         except Exception as e:
@@ -276,41 +276,40 @@ def ingest_aao(conn, limit=None, date_from=None, date_to=None):
         conditions.append(f"decision_date <= '{date_to}'")
     where = " AND ".join(conditions)
 
-    # Get total count and already-done set
+    # Get total count
     with conn.cursor() as cur:
         cur.execute(f"SELECT COUNT(*) FROM aao_decisions WHERE {where}")
         total_count = cur.fetchone()[0]
     with conn.cursor() as cur:
-        cur.execute("SELECT DISTINCT source_id FROM rag_chunks WHERE corpus = 'aao'")
-        already_done = {r[0] for r in cur.fetchall()}
+        cur.execute("SELECT COUNT(DISTINCT source_id) FROM rag_chunks WHERE corpus = 'aao'")
+        already_count = cur.fetchone()[0]
 
-    remaining = total_count - len(already_done)
-    print(f"  {total_count} decisions total, {len(already_done)} already embedded, {remaining} remaining")
+    remaining = total_count - already_count
+    print(f"  {total_count} decisions total, {already_count} already embedded, {remaining} remaining")
 
     # Process in batches of 500 decisions to avoid loading all into RAM
     DECISION_BATCH = 500
-    offset = 0
     total = 0
+    processed = 0
 
     while True:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(f"""
                 SELECT id, COALESCE(title, form_type, filename) AS label,
                        decision_date::text, outcome, form_type, full_text
-                FROM aao_decisions WHERE {where}
+                FROM aao_decisions
+                WHERE {where}
+                AND NOT EXISTS (
+                    SELECT 1 FROM rag_chunks
+                    WHERE corpus = 'aao' AND source_id = aao_decisions.id::text
+                )
                 ORDER BY decision_date DESC NULLS LAST
-                LIMIT {DECISION_BATCH} OFFSET {offset}
+                LIMIT {DECISION_BATCH}
             """)
             rows = cur.fetchall()
 
         if not rows:
             break
-
-        # Skip already embedded
-        rows = [r for r in rows if str(r["id"]) not in already_done and r["id"] not in already_done]
-        if not rows:
-            offset += DECISION_BATCH
-            continue
 
         all_pending = []
         for doc in rows:
@@ -327,12 +326,11 @@ def ingest_aao(conn, limit=None, date_from=None, date_to=None):
                     "cfr_citation": None, "form_type": doc.get("form_type"),
                 })
 
+        processed += len(rows)
         if all_pending:
             batch_total = _embed_and_save(conn, all_pending)
             total += batch_total
-            print(f"  [{offset + DECISION_BATCH}/{total_count}] {total} chunks embedded so far")
-
-        offset += DECISION_BATCH
+            print(f"  [{processed}/{total_count}] {total} chunks embedded so far")
 
     print(f"  Done — {total} chunks ingested")
 
